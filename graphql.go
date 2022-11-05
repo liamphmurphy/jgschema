@@ -14,15 +14,21 @@ type Schema struct {
 	Fields   []Field
 }
 
+// Field defines the data needed to construct a GraphQL schema field.
 type Field struct {
 	Name        string
 	Type        string
 	Description string
 	Required    bool
+	Array       bool
 }
 
 // Transform contains all the logic for transforming a JSON schema into a GraphQL schema struct.
 func Transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
+	return transform(jsonSchema)
+}
+
+func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 	var schema Schema
 	schema.TypeName = jsonSchema.Title
 
