@@ -48,24 +48,44 @@ func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 		return nil, fmt.Errorf("error walking down the properties tree for schema %q", jsonSchema.Title)
 	}
 
-	// Handle any allOf schemas and attach to the parent schema.
-	if jsonSchema.AllOf != nil {
-		for _, allOfSchema := range jsonSchema.AllOf {
-			refSchema, err := jsonutils.ReadSchema(allOfSchema.Ref)
-			if err != nil {
-				return nil, fmt.Errorf("error reading ref json schema: %w", err)
-			}
+	// Handle any allOf schemas and merge fields to the parent schema.
+	allOfSchemas, err := processRefSchemas(jsonSchema.AllOf, &schemas[0], true)
+	if err != nil {
+		return nil, fmt.Errorf("error processing allOf reference schemas: %w", err)
+	}
 
-			allOfSchemas, err := Transform(refSchema)
-			if err != nil {
-				return nil, fmt.Errorf("error processing allOf schema: %w", err)
-			}
+	// Handle any oneOf schemas. Does not merge back into the parent.
+	oneOfSchemas, err := processRefSchemas(jsonSchema.OneOf, nil, false)
+	if err != nil {
+		return nil, fmt.Errorf("error processing oneOf reference schemas: %w", err)
+	}
 
-			schemas = append(schemas, *allOfSchemas...)
+	schemas = append(schemas, *allOfSchemas...)
+	schemas = append(schemas, *oneOfSchemas...)
 
-			// Assign a field in the parent schema referencing the new allOf schema.
-			for _, newSchema := range *allOfSchemas {
-				schemas[0].Fields = append(schemas[0].Fields, Field{
+	return &schemas, nil
+}
+
+// processRefSchemas processes any referenced schemas such as from allOf, oneOf, anyOf declarations.
+func processRefSchemas(refSchemas []*jsonschema.Schema, parent *Schema, mergeIntoParent bool) (*[]Schema, error) {
+	var newSchemas []Schema
+	for _, schema := range refSchemas {
+		refSchema, err := jsonutils.ReadSchema(schema.Ref)
+		if err != nil {
+			return nil, fmt.Errorf("error reading ref json schema: %w", err)
+		}
+
+		refSchemas, err := Transform(refSchema)
+		if err != nil {
+			return nil, fmt.Errorf("error processing new ref schemas: %w", err)
+		}
+
+		newSchemas = append(newSchemas, *refSchemas...)
+
+		if mergeIntoParent {
+			// Assign a field in the parent schema referencing the new schema.
+			for _, newSchema := range *refSchemas {
+				parent.Fields = append(parent.Fields, Field{
 					Name:        lowerTitle(newSchema.TypeName),
 					Description: refSchema.Description,
 					Type:        title(newSchema.TypeName),
@@ -74,7 +94,7 @@ func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 		}
 	}
 
-	return &schemas, nil
+	return &newSchemas, nil
 }
 
 // propertiesWalk walks down the properties tree of a JSON schema, and builds schemas along the way.
@@ -105,7 +125,7 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 		}
 
 		schema.Fields = append(schema.Fields, Field{
-			Name:        key,
+			Name:        lowerTitle(key),
 			Type:        graphTypeName,
 			Description: *description,
 			Required:    contains(required, key),

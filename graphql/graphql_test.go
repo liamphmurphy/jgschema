@@ -141,6 +141,48 @@ func TestTransform(t *testing.T) {
 			},
 			wantErr: nil,
 		},
+		{
+			description: "should process a JSON schema with a oneOf ref.",
+			inputSchema: fmt.Sprintf("%s/schema-with-oneOf.json", schemaTestDir),
+			wantGraphQL: []Schema{
+				{
+					TypeName: "AllOfSchema",
+					Fields: []Field{
+						{
+							Name:        "exampleField",
+							Type:        "String",
+							Description: "Example field description.",
+						},
+						{
+							Name:        "sampleObjectField",
+							Type:        "SampleObjectField",
+							Description: "Sample object field description.",
+						},
+					},
+				},
+				{
+					TypeName: "SampleObjectField",
+					Fields: []Field{
+						{
+							Name:        "nestedField",
+							Type:        "Int",
+							Description: "Nested object field description.",
+						},
+					},
+				},
+				{
+					TypeName: "SimpleSchema",
+					Fields: []Field{
+						{
+							Name:        "sampleField",
+							Type:        "String",
+							Description: "Sample field description.",
+						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
 	}
 
 	for _, test := range tests {
