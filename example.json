@@ -4,20 +4,15 @@
     "title": "Product",
     "description": "A product from Acme's catalog",
     "type": "object",
+    "allOf": [
+        {
+            "$ref": "./allOfSchema.json"
+        }
+    ],
     "properties": {
         "productId": {
             "description": "The unique identifier for a product",
             "type": "integer"
-        },
-        "testArray": {
-            "type": "array",
-            "description": "test array example",
-            "items": {
-                "arrayItem": {
-                    "type": "integer",
-                    "description": "test array item example"
-                }
-            }
         },
         "objectExample": {
             "description": "object example",

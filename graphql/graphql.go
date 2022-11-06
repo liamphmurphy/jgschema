@@ -1,7 +1,8 @@
-package main
+package graphql
 
 import (
 	"fmt"
+	"jgschema/utils"
 	"unicode"
 
 	"github.com/iancoleman/orderedmap"
@@ -23,16 +24,44 @@ type Field struct {
 	Array       bool
 }
 
-// Transform contains all the logic for transforming a JSON schema into a GraphQL schema struct.
+// Transform handles the logic of transforming a given jsonschema.Schema struct into a GraphQL schema struct.
 func Transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 	return transform(jsonSchema)
+}
+
+// TransformFromFile creats a jsonschema.Struct from a file path and transforms it into a GraphQL schema struct.
+func TransformFromFile(path string) (*[]Schema, error) {
+	schema, err := utils.ReadJSONSchema(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading the %q schema defined in allOf block: %w", path, err)
+	}
+
+	return transform(schema)
 }
 
 func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 	var schema Schema
 	schema.TypeName = jsonSchema.Title
 
+	// schemas acts as the "master list" of schemas to be generated.
 	var schemas []Schema
+
+	// Handle any allOF schemas defined first.
+	if jsonSchema.AllOf != nil {
+		for _, allOfSchema := range jsonSchema.AllOf {
+			allOfSchemas, err := TransformFromFile(allOfSchema.Ref)
+			if err != nil {
+				return nil, fmt.Errorf("error processing allOf schema: %w", err)
+			}
+
+			if allOfSchemas == nil {
+				continue
+			}
+
+			schemas = append(schemas, *allOfSchemas...)
+		}
+	}
+
 	return propertiesWalk(jsonSchema.Properties, &schemas, jsonSchema.Required)
 }
 

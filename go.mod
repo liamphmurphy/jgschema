@@ -1,4 +1,4 @@
-module jgraph
+module jgschema
 
 go 1.19
 

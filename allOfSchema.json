@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "test allOf schema",
+    "description": "A sample schema called from an allOf directive.",
+    "type": "object",
+    "properties": {
+        "sampleField": {
+            "description": "sample field in the allOf schema",
+            "type": "string"
+        }
+    } 
+}
