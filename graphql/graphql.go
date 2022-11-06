@@ -63,9 +63,10 @@ func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 
 			schemas = append(schemas, *allOfSchemas...)
 
+			// Assign a field in the parent schema referencing the new allOf schema.
 			for _, newSchema := range *allOfSchemas {
 				schemas[0].Fields = append(schemas[0].Fields, Field{
-					Name:        newSchema.TypeName,
+					Name:        lowerTitle(newSchema.TypeName),
 					Description: refSchema.Description,
 					Type:        title(newSchema.TypeName),
 				})
@@ -197,5 +198,12 @@ func constructFieldName(name string, typeName string) (string, error) {
 func title(str string) string {
 	r := []rune(str)
 	r[0] = unicode.ToUpper(r[0])
+	return string(r)
+}
+
+// title lowercases the first letter of a string, per GraphQL's field naming convention.
+func lowerTitle(str string) string {
+	r := []rune(str)
+	r[0] = unicode.ToLower(r[0])
 	return string(r)
 }

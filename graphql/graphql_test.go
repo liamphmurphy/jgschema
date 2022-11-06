@@ -112,7 +112,7 @@ func TestTransform(t *testing.T) {
 							Description: "Sample object field description.",
 						},
 						{
-							Name:        "SimpleSchema",
+							Name:        "simpleSchema",
 							Type:        "SimpleSchema",
 							Description: "A sample schema for the purpose of testing.",
 						},
