@@ -33,7 +33,6 @@ func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 	schema.TypeName = jsonSchema.Title
 
 	var schemas []Schema
-
 	return propertiesWalk(jsonSchema.Properties, &schemas, jsonSchema.Required)
 }
 
@@ -42,17 +41,17 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 	for _, key := range root.Keys() {
 		var fields []Field
 
-		get, ok := root.Get(key)
+		property, ok := root.Get(key)
 		if !ok {
 			continue
 		}
 
-		description, err := getOrderedMapKey[string](get, "description")
+		description, err := getOrderedMapKey[string](property, "description")
 		if err != nil {
 			return nil, err
 		}
 
-		fieldType, err := getOrderedMapKey[string](get, "type")
+		fieldType, err := getOrderedMapKey[string](property, "type")
 		if err != nil {
 			return nil, err
 		}
@@ -67,22 +66,23 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 			Type:        graphTypeName,
 			Description: *description,
 			Required:    contains(required, key),
+			Array:       isArray(*fieldType),
 		})
 
 		*schemas = append(*schemas, Schema{TypeName: *fieldType, Fields: fields})
 
 		if *fieldType == "object" {
-			properties, err := getOrderedMapKey[orderedmap.OrderedMap](get, "properties")
+			properties, err := getOrderedMapKey[orderedmap.OrderedMap](property, "properties")
 			if err != nil {
 				return nil, err
 			}
 
-			// Avoid recursion if there are no further properties to process.
+			// Avoid further traversal if there are no properties.
 			if len(properties.Keys()) == 0 {
 				return schemas, nil
 			}
 
-			reqRaw, err := getOrderedMapKey[[]any](get, "required")
+			reqRaw, err := getOrderedMapKey[[]any](property, "required")
 			if err != nil {
 				return nil, err
 			}
@@ -128,6 +128,10 @@ func contains(requiredFields []string, field string) bool {
 		}
 	}
 	return false
+}
+
+func isArray(typeName string) bool {
+	return typeName == "array"
 }
 
 // constructFieldName turns a JSON Schema's type (lowercase) into an uppercase name. If an object, use the name of the field.

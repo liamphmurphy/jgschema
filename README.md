@@ -13,11 +13,8 @@ A few issues arise when you have to manually translate a JSON schema to a GraphQ
 # Features
 Below are the list of features that are either done or need to be worked on.
 
-✅ Supports the following JSON types: scalars (strings, integers, numbers, boolean) and objects.
-✅ Walk down the "properties" tree for nested object traversal.
+✅ Translates the following JSON types: scalars (strings, integers, numbers, boolean) and objects.
 x Support allOf in any place in the properties tree.
 x Support arrays.
-
-# Tentative plans
-
-- It would be nice to support "oneOf", the issue here is that this case can be a little ambiguous. Current tentative plan is to just support the generation of any schema listed in a "oneOf", by generating the GraphQL schemas for all oneOf's listed but to not to try and do anything fancy by making a GraphQL interface. 
+x Generator for writing the GraphQL file.
+x support oneOf's / anyOf's..
