@@ -1,4 +1,4 @@
-{{range .Schemas}}type {{.TypeName}} {
+{{range .Schemas -}}type {{.TypeName}} {
 	{{range .Fields}}{{.Name}}: {{.Type}}{{end}}
 }
-{{end}}
+{{- end}}

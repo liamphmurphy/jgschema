@@ -1,11 +1,11 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "AllOfSchema",
-    "description": "A schema with a oneOf ref.",
+    "description": "A schema with an allOf ref.",
     "type": "object",
-    "oneOf": [
+    "allOf": [
         {
-            "$ref": "./test_data/schemas/simple-schema.json"
+            "$ref": "./test_data/jsonschema/simple-schema.json"
         }
     ],
     "properties": {

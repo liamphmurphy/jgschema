@@ -8,9 +8,18 @@ A few issues arise when you have to manually translate a JSON schema to a GraphQ
 - Not obvious to new developers on the app that this manual translation is a part of the flow. 
 - It takes a lot of time. 
 
+# Logic Explanation
+
+This tool uses a recursive approach of starting from a "parent schema" and walking down any allOf schemas and the parent schema's properties tree. 
+
+GraphQL does not have the notion of nesting, thus all nested schemas in the recursion are made as a separate type and everything is flattened to the top-level in the schema.
+
+The parent schema will contain fields referencing the first-level of the properties tree; including arrays and objects. 
+
 # What this app does not do
 - Does not support taking in a JSON payload (non-schema) and turning that into GraphQL.
 - Does not support the reverse operation of translating a GraphQL schema to a JSON schema.
+- Does not (and technically cannot) enforce any "valid value restrictions" designated in the JSON schema, such as minLength, maxLength, maxItems, etc. That is up to your GraphQL resolver logic to enforce.
 
 # Features
 Below are the list of features that are either done or need to be worked on.
@@ -19,4 +28,5 @@ Below are the list of features that are either done or need to be worked on.
 - Support allOf in any place in the properties tree.
 - Support arrays.
 - Generator for writing the GraphQL file.
-- support oneOf's / anyOf's..
+- Support oneOf's / anyOf's..
+- Support running from Docker.

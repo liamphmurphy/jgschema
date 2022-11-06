@@ -1,4 +1,4 @@
-package utils
+package jsonutils
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
-func ReadJSONSchema(path string) (*jsonschema.Schema, error) {
+func ReadSchema(path string) (*jsonschema.Schema, error) {
 	example, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("error reading example file: %w", err)

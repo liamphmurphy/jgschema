@@ -16,7 +16,7 @@ func TestTransform(t *testing.T) {
 		wantErr     error
 	}
 
-	schemaTestDir := "./test_data/schemas"
+	schemaTestDir := "./test_data/jsonschema"
 	tests := []test{
 		{
 			description: "should process a very simple JSON schema",

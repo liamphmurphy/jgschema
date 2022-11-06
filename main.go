@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"jgschema/graphql"
-	"jgschema/utils"
+	"jgschema/jsonutils"
 	"os"
 )
 
 func main() {
-	jsonSchema, err := utils.ReadJSONSchema("./example.json")
+	jsonSchema, err := jsonutils.ReadSchema("./example.json")
 	if err != nil {
 		fmt.Printf("error reading JSON schema: %v\n", err)
 		os.Exit(1)
