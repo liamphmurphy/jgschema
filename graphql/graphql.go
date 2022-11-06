@@ -43,23 +43,41 @@ func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 	// schemas acts as the "master list" of schemas to be generated.
 	var schemas []Schema
 
-	// Handle any allOF schemas defined first.
+	err := propertiesWalk(jsonSchema.Properties, &schemas, jsonSchema.Required, jsonSchema.Title)
+	if err != nil {
+		return nil, fmt.Errorf("error walking down the properties tree for schema %q", jsonSchema.Title)
+	}
+
+	// Handle any allOf schemas and attach to the parent schema.
 	if jsonSchema.AllOf != nil {
 		for _, allOfSchema := range jsonSchema.AllOf {
-			allOfSchemas, err := TransformFromFile(allOfSchema.Ref)
+			refSchema, err := jsonutils.ReadSchema(allOfSchema.Ref)
+			if err != nil {
+				return nil, fmt.Errorf("error reading ref json schema: %w", err)
+			}
+
+			allOfSchemas, err := Transform(refSchema)
 			if err != nil {
 				return nil, fmt.Errorf("error processing allOf schema: %w", err)
 			}
 
 			schemas = append(schemas, *allOfSchemas...)
+
+			for _, newSchema := range *allOfSchemas {
+				schemas[0].Fields = append(schemas[0].Fields, Field{
+					Name:        newSchema.TypeName,
+					Description: refSchema.Description,
+					Type:        title(newSchema.TypeName),
+				})
+			}
 		}
 	}
 
-	return propertiesWalk(jsonSchema.Properties, &schemas, jsonSchema.Required, jsonSchema.Title)
+	return &schemas, nil
 }
 
 // propertiesWalk walks down the properties tree of a JSON schema, and builds schemas along the way.
-func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []string, typeName string) (*[]Schema, error) {
+func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []string, typeName string) error {
 	schema := Schema{
 		TypeName: typeName,
 		Fields:   []Field{},
@@ -72,17 +90,17 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 
 		description, err := getOrderedMapKey[string](property, "description")
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		fieldType, err := getOrderedMapKey[string](property, "type")
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		graphTypeName, err := constructFieldName(key, *fieldType)
 		if err != nil {
-			return nil, fmt.Errorf("error constructing graphql field name: %w", err)
+			return fmt.Errorf("error constructing graphql field name: %w", err)
 		}
 
 		schema.Fields = append(schema.Fields, Field{
@@ -97,7 +115,7 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 		if *fieldType == "object" {
 			properties, err := getOrderedMapKey[orderedmap.OrderedMap](property, "properties")
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			// Avoid further traversal if there are no properties.
@@ -108,7 +126,7 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 
 			reqRaw, err := getOrderedMapKey[[]any](property, "required")
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			required := make([]string, len(*reqRaw))
@@ -121,7 +139,7 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 		}
 	}
 	*schemas = append(*schemas, schema)
-	return schemas, nil
+	return nil
 }
 
 // assertOrderedMapValue generically automates the tedium of getting a value out of an orderedmap.OrderedMap key/value pair.
