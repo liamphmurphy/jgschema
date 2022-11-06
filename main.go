@@ -17,7 +17,14 @@ func main() {
 	graphSchema, err := graphql.Transform(jsonSchema)
 	if err != nil {
 		fmt.Printf("error transforming graphql schema: %v", err)
+		os.Exit(1)
 	}
 
-	fmt.Printf("%#v\n", *graphSchema)
+	generateSchema, err := graphql.Generate(*graphSchema)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Println(generateSchema)
 }

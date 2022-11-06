@@ -12,7 +12,7 @@ import (
 // Schema defines the elements of a GraphQL schema in the context of this program.
 type Schema struct {
 	TypeName string
-	Fields   []Field
+	Fields   *[]Field
 }
 
 // Field defines the data needed to construct a GraphQL schema field.
@@ -40,9 +40,6 @@ func TransformFromFile(path string) (*[]Schema, error) {
 }
 
 func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
-	var schema Schema
-	schema.TypeName = jsonSchema.Title
-
 	// schemas acts as the "master list" of schemas to be generated.
 	var schemas []Schema
 
@@ -54,22 +51,20 @@ func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 				return nil, fmt.Errorf("error processing allOf schema: %w", err)
 			}
 
-			if allOfSchemas == nil {
-				continue
-			}
-
 			schemas = append(schemas, *allOfSchemas...)
 		}
 	}
 
-	return propertiesWalk(jsonSchema.Properties, &schemas, jsonSchema.Required)
+	return propertiesWalk(jsonSchema.Properties, &schemas, jsonSchema.Required, jsonSchema.Title)
 }
 
 // propertiesWalk walks down the properties tree of a JSON schema, and builds schemas along the way.
-func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []string) (*[]Schema, error) {
+func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []string, typeName string) (*[]Schema, error) {
+	schema := Schema{
+		TypeName: typeName,
+		Fields:   &[]Field{},
+	}
 	for _, key := range root.Keys() {
-		var fields []Field
-
 		property, ok := root.Get(key)
 		if !ok {
 			continue
@@ -90,15 +85,14 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 			return nil, fmt.Errorf("error constructing graphql field name: %w", err)
 		}
 
-		fields = append(fields, Field{
+		*schema.Fields = append(*schema.Fields, Field{
 			Name:        key,
 			Type:        graphTypeName,
 			Description: *description,
 			Required:    contains(required, key),
 			Array:       isArray(*fieldType),
 		})
-
-		*schemas = append(*schemas, Schema{TypeName: *fieldType, Fields: fields})
+		schema.TypeName = typeName
 
 		if *fieldType == "object" {
 			properties, err := getOrderedMapKey[orderedmap.OrderedMap](property, "properties")
@@ -107,8 +101,8 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 			}
 
 			// Avoid further traversal if there are no properties.
-			if len(properties.Keys()) == 0 {
-				return schemas, nil
+			if properties.Keys() == nil {
+				continue
 			}
 
 			reqRaw, err := getOrderedMapKey[[]any](property, "required")
@@ -122,11 +116,10 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 				required[i] = reqStr
 			}
 
-			return propertiesWalk(properties, schemas, required)
+			return propertiesWalk(properties, schemas, required, title(key))
 		}
-
+		*schemas = append(*schemas, schema)
 	}
-
 	return schemas, nil
 }
 
@@ -175,10 +168,15 @@ func constructFieldName(name string, typeName string) (string, error) {
 	case "string":
 		return "String", nil
 	case "object":
-		r := []rune(name)
-		r[0] = unicode.ToUpper(r[0])
-		return string(r), nil
+		return title(name), nil
 	default:
 		return "", fmt.Errorf("unrecognized type name: %q", typeName)
 	}
+}
+
+// title uppercases the first letter of a string, per GraphQL's type naming convention.
+func title(str string) string {
+	r := []rune(str)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
 }
