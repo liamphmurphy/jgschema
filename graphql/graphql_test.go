@@ -24,7 +24,7 @@ func TestTransform(t *testing.T) {
 			wantGraphQL: []Schema{
 				{
 					TypeName: "SimpleSchema",
-					Fields: &[]Field{
+					Fields: []Field{
 						{
 							Name:        "sampleField",
 							Type:        "String",
@@ -35,33 +35,65 @@ func TestTransform(t *testing.T) {
 			},
 			wantErr: nil,
 		},
-		/*{
+		{
 			description: "should process a JSON schema with multiple fields but no nesting.",
 			inputSchema: fmt.Sprintf("%s/one-level-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
 					TypeName: "OneLevelSchema",
-					Fields: &[]Field{
+					Fields: []Field{
 						{
 							Name:        "sampleStringField",
 							Type:        "String",
-							Description: "Sample field string description.",
+							Description: "Sample string field description.",
 						},
 						{
 							Name:        "sampleIntegerField",
 							Type:        "Int",
-							Description: "Sample integer string description.",
+							Description: "Sample integer field description.",
 						},
 						{
 							Name:        "sampleNumberField",
 							Type:        "Float",
-							Description: "Sample number string description.",
+							Description: "Sample number field description.",
 						},
 					},
 				},
 			},
 			wantErr: nil,
-		},*/
+		},
+		{
+			description: "should process a JSON schema with a nested object.",
+			inputSchema: fmt.Sprintf("%s/nested-schema.json", schemaTestDir),
+			wantGraphQL: []Schema{
+				{
+					TypeName: "NestedSchema",
+					Fields: []Field{
+						{
+							Name:        "sampleField",
+							Type:        "String",
+							Description: "Sample field description.",
+						},
+						{
+							Name:        "sampleObjectField",
+							Type:        "SampleObjectField",
+							Description: "Sample object field description.",
+						},
+					},
+				},
+				{
+					TypeName: "SampleObjectField",
+					Fields: []Field{
+						{
+							Name:        "nestedField",
+							Type:        "Int",
+							Description: "Nested object field description.",
+						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
 	}
 
 	for _, test := range tests {

@@ -12,7 +12,7 @@ import (
 // Schema defines the elements of a GraphQL schema in the context of this program.
 type Schema struct {
 	TypeName string
-	Fields   *[]Field
+	Fields   []Field
 }
 
 // Field defines the data needed to construct a GraphQL schema field.
@@ -62,7 +62,7 @@ func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []string, typeName string) (*[]Schema, error) {
 	schema := Schema{
 		TypeName: typeName,
-		Fields:   &[]Field{},
+		Fields:   []Field{},
 	}
 	for _, key := range root.Keys() {
 		property, ok := root.Get(key)
@@ -85,7 +85,7 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 			return nil, fmt.Errorf("error constructing graphql field name: %w", err)
 		}
 
-		*schema.Fields = append(*schema.Fields, Field{
+		schema.Fields = append(schema.Fields, Field{
 			Name:        key,
 			Type:        graphTypeName,
 			Description: *description,
@@ -101,6 +101,7 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 			}
 
 			// Avoid further traversal if there are no properties.
+			// TODO; should this be an error?
 			if properties.Keys() == nil {
 				continue
 			}
@@ -115,11 +116,11 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 				reqStr := req.(string)
 				required[i] = reqStr
 			}
-
+			*schemas = append(*schemas, schema)
 			return propertiesWalk(properties, schemas, required, title(key))
 		}
-		*schemas = append(*schemas, schema)
 	}
+	*schemas = append(*schemas, schema)
 	return schemas, nil
 }
 
