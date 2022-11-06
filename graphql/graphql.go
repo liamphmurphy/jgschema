@@ -2,7 +2,7 @@ package graphql
 
 import (
 	"fmt"
-	"jgschema/utils"
+	"jgschema/jsonutils"
 	"unicode"
 
 	"github.com/iancoleman/orderedmap"
@@ -31,7 +31,7 @@ func Transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 
 // TransformFromFile creats a jsonschema.Struct from a file path and transforms it into a GraphQL schema struct.
 func TransformFromFile(path string) (*[]Schema, error) {
-	schema, err := utils.ReadJSONSchema(path)
+	schema, err := jsonutils.ReadSchema(path)
 	if err != nil {
 		return nil, fmt.Errorf("error reading the %q schema defined in allOf block: %w", path, err)
 	}

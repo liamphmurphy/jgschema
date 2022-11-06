@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "SimpleSchema",
+    "description": "A sample schema for the purpose of testing.",
+    "type": "object",
+    "properties": {
+        "sampleField": {
+            "description": "Sample field description.",
+            "type": "string"
+        }
+    } 
+}

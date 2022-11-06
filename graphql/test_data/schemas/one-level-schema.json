@@ -1,0 +1,20 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "OneLevelSchema",
+    "description": "A schema with multiple fields but no nested objects.",
+    "type": "object",
+    "properties": {
+        "sampleStringField": {
+            "description": "Sample string field description.",
+            "type": "string"
+        },
+        "sampleIntegerField": {
+            "description": "Sample integer field description.",
+            "type": "integer"
+        },
+        "sampleNumberField": {
+            "description": "Sample number field description.",
+            "type": "number"
+        }
+    } 
+}
