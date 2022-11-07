@@ -36,8 +36,8 @@ func GenerateToFile(schemas []Schema, path string, perms fs.FileMode) error {
 
 // generate takes in a slice of GraphQL schemas and writes it in the format of a GraphQL schema file.
 // Final result is allocated to the passed in io.Writer.
-func generate(schemas []Schema, writer io.Writer) error {
-	if writer == nil {
+func generate(schemas []Schema, w io.Writer) error {
+	if w == nil {
 		return fmt.Errorf("an io.Writer was not passed into the generator")
 	}
 
@@ -60,7 +60,7 @@ func generate(schemas []Schema, writer io.Writer) error {
 		sb.WriteString("}")
 	}
 
-	_, err := writer.Write([]byte(sb.String()))
+	_, err := w.Write([]byte(sb.String()))
 	return err
 }
 

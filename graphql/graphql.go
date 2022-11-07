@@ -60,8 +60,15 @@ func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
 		return nil, fmt.Errorf("error processing oneOf reference schemas: %w", err)
 	}
 
+	// Handle all anyOf schemas. Does not merge back into the parent.
+	anyOfSchemas, err := processRefSchemas(jsonSchema.AnyOf, &schemas[0], false)
+	if err != nil {
+		return nil, fmt.Errorf("error processing anyOf reference schemas: %w", err)
+	}
+
 	schemas = append(schemas, *allOfSchemas...)
 	schemas = append(schemas, *oneOfSchemas...)
+	schemas = append(schemas, *anyOfSchemas...)
 
 	return &schemas, nil
 }
@@ -132,6 +139,15 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 			Array:       isArray(*fieldType),
 		})
 		schema.TypeName = typeName
+
+		if *fieldType == "array" {
+			items, err := getOrderedMapKey[orderedmap.OrderedMap](property, "items")
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(items)
+		}
 
 		if *fieldType == "object" {
 			properties, err := getOrderedMapKey[orderedmap.OrderedMap](property, "properties")
