@@ -6,16 +6,12 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"text/template"
+	"strings"
 )
 
 type Generator struct {
 	Schemas []Schema
 }
-
-var (
-	schemaTemplate = "./graphql/schema.tmpl"
-)
 
 // Generate will return the full GraphQL generated schema as a string.
 func Generate(schemas []Schema) (string, error) {
@@ -38,37 +34,46 @@ func GenerateToFile(schemas []Schema, path string, perms fs.FileMode) error {
 	return os.WriteFile(path, buffer.Bytes(), perms)
 }
 
-// generate contains the core template logic for generating a GraphQL schema list. template.Execute makes use of an io.Writer,
-// so a passed in Writer is needed and the resulting template will be allocated to the Writer.
+// generate takes in a slice of GraphQL schemas and writes it in the format of a GraphQL schema file.
+// Final result is allocated to the passed in io.Writer.
 func generate(schemas []Schema, writer io.Writer) error {
 	if writer == nil {
 		return fmt.Errorf("an io.Writer was not passed into the generator")
 	}
 
-	generator := Generator{Schemas: schemas}
+	var sb strings.Builder
 
-	t, err := template.New("schema.tmpl").Funcs(template.FuncMap{
-		// Builds out the type ref, factoring in whether it is an array and/or required.
-		"buildTypeRef": func(field Field) string {
-			builtType := field.Type
-			if field.Array {
-				builtType = fmt.Sprintf("[%s]", builtType)
+	for i, schema := range schemas {
+		if i != 0 && i != len(schemas) {
+			sb.WriteString("\n\n")
+		}
+
+		sb.WriteString(fmt.Sprintf("type %s {\n", schema.TypeName))
+		for j, field := range schema.Fields {
+			if j != 0 && j != len(schema.Fields) {
+				sb.WriteString("\n")
 			}
+			sb.WriteString(fmt.Sprintf("\t\"%s\"\n", field.Description))
+			sb.WriteString(fmt.Sprintf("\t%s: %s\n", field.Name, buildTypeRef(field)))
+		}
 
-			if field.Required {
-				builtType = fmt.Sprintf("%s!", builtType)
-			}
-
-			return builtType
-		},
-	}).ParseFiles(schemaTemplate)
-	if err != nil {
-		panic(err)
+		sb.WriteString("}")
 	}
 
-	if err := t.Execute(writer, &generator); err != nil {
-		return fmt.Errorf("error executing graphql template: %w", err)
+	_, err := writer.Write([]byte(sb.String()))
+	return err
+}
+
+// buildTypeRef builds the type reference based on the name of the type, whether it is required, and whether it is an array.
+func buildTypeRef(field Field) string {
+	builtType := field.Type
+	if field.Array {
+		builtType = fmt.Sprintf("[%s]", builtType)
 	}
 
-	return nil
+	if field.Required {
+		builtType = fmt.Sprintf("%s!", builtType)
+	}
+
+	return builtType
 }
