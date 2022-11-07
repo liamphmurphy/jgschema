@@ -29,4 +29,5 @@ Below are the list of features that are either done or need to be worked on.
 - ✅ GraphQL file generator.
 - Support arrays.
 - Support definitions, both file and inline.
+- Cobra CLI interface.
 - Support running from Docker.
