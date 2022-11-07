@@ -3,7 +3,7 @@ package graphql
 import (
 	"fmt"
 	"os"
-	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -20,7 +20,7 @@ func TestGenerate(t *testing.T) {
 		{
 			description: "Should successfully generate from a simple graphql schema.",
 			inputGraphQL: []Schema{
-				Schema{
+				{
 					TypeName: "Test",
 					Fields: []Field{
 						{
@@ -33,20 +33,75 @@ func TestGenerate(t *testing.T) {
 			},
 			wantSchema: fmt.Sprintf("%s/simple-schema.graphql", schemaTestDir),
 		},
+		{
+			description: "Should successfully generate from a simple schema with an object field.",
+			inputGraphQL: []Schema{
+				{
+					TypeName: "Test",
+					Fields: []Field{
+						{
+							Name:        "testField",
+							Description: "Test description.",
+							Type:        "String",
+						},
+						{
+							Name:        "testObject",
+							Description: "Test object.",
+							Type:        "TestObject",
+						},
+					},
+				},
+				{
+					TypeName: "TestObject",
+					Fields: []Field{
+						{
+							Name:        "objectField",
+							Description: "object field description.",
+							Type:        "Int",
+						},
+					},
+				},
+			},
+			wantSchema: fmt.Sprintf("%s/object-schema.graphql", schemaTestDir),
+		},
+		{
+			description: "Should successfully generate from a simple schema with array and required fields.",
+			inputGraphQL: []Schema{
+				{
+					TypeName: "Test",
+					Fields: []Field{
+						{
+							Name:        "testField",
+							Description: "Test description.",
+							Type:        "String",
+							Array:       true,
+						},
+						{
+							Name:        "testObject",
+							Description: "Test object.",
+							Type:        "TestObject",
+							Required:    true,
+						},
+					},
+				},
+				{
+					TypeName: "TestObject",
+					Fields: []Field{
+						{
+							Name:        "objectField",
+							Description: "object field description.",
+							Type:        "Int",
+						},
+					},
+				},
+			},
+			wantSchema: fmt.Sprintf("%s/array-required-fields.graphql", schemaTestDir),
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
 			generated, err := Generate(test.inputGraphQL)
-			if err != nil {
-				t.Fatalf("error reading JSON schema test file at path %q: %v", test.wantSchema, err)
-			}
-
-			want, err := os.ReadFile(test.wantSchema)
-			if err != nil {
-				t.Fatalf("error reading test graphql schema file at path %q: %v", test.wantSchema, err)
-			}
-
 			// TODO; look at some cleaner error testing.
 			if err == nil && test.wantErr != nil {
 				t.Errorf("expected the following error, but did not get any error: %v", test.wantErr)
@@ -58,9 +113,24 @@ func TestGenerate(t *testing.T) {
 				}
 			}
 
-			if !reflect.DeepEqual(string(want), generated) {
+			want, err := os.ReadFile(test.wantSchema)
+			if err != nil {
+				t.Fatalf("error reading test graphql schema file at path %q: %v", test.wantSchema, err)
+			}
+
+			cleanedWant := cleanUpFileContents(string(want))
+			cleanedGenerated := cleanUpFileContents(generated)
+
+			if cleanedWant != cleanedGenerated {
 				t.Errorf("did not get expected generated result.\nwant - %s\ngot - %s", want, generated)
 			}
 		})
 	}
+}
+
+func cleanUpFileContents(contents string) string {
+	for _, char := range []string{"\n", "\t", " "} {
+		contents = strings.ReplaceAll(contents, char, "")
+	}
+	return contents
 }

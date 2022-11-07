@@ -47,9 +47,23 @@ func generate(schemas []Schema, writer io.Writer) error {
 
 	generator := Generator{Schemas: schemas}
 
-	t, err := template.ParseFiles(schemaTemplate)
+	t, err := template.New("schema.tmpl").Funcs(template.FuncMap{
+		// Builds out the type ref, factoring in whether it is an array and/or required.
+		"buildTypeRef": func(field Field) string {
+			builtType := field.Type
+			if field.Array {
+				builtType = fmt.Sprintf("[%s]", builtType)
+			}
+
+			if field.Required {
+				builtType = fmt.Sprintf("%s!", builtType)
+			}
+
+			return builtType
+		},
+	}).ParseFiles(schemaTemplate)
 	if err != nil {
-		return fmt.Errorf("error creating template: %w", err)
+		panic(err)
 	}
 
 	if err := t.Execute(writer, &generator); err != nil {

@@ -1,0 +1,12 @@
+type Test {
+    "Test description."
+    testField: [String]
+
+    "Test object."
+    testObject: TestObject!
+}
+
+type TestObject {
+    "object field description."
+    objectField: Int
+}

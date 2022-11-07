@@ -1,4 +1,9 @@
 {{range .Schemas -}}type {{.TypeName}} {
-	{{range .Fields}}{{.Name}}: {{.Type}}{{end}}
+	{{- range .Fields}}
+	"{{.Description}}"
+	{{.Name}}: {{buildTypeRef .}}
+	{{printf "\n"}}
+	{{- end -}}
 }
-{{- end}}
+
+{{end}}
