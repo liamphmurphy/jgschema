@@ -102,14 +102,16 @@ func TestTransform(t *testing.T) {
 					TypeName: "ArraySchema",
 					Fields: []Field{
 						{
-							Name:        "sampleField",
-							Type:        "String",
-							Description: "Sample field description.",
+							Name:        "arrayStringField",
+							Type:        "[String]",
+							Description: "Sample array field description.",
+							Array:       true,
 						},
 						{
-							Name:        "sampleObjectField",
-							Type:        "SampleObjectField",
-							Description: "Sample object field description.",
+							Name:        "arrayObjectField",
+							Type:        "[ArrayObjectField]",
+							Description: "Sample object array item field description.",
+							Array:       true,
 						},
 					},
 				},

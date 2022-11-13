@@ -126,9 +126,36 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 			return err
 		}
 
-		graphTypeName, err := constructFieldName(key, *fieldType)
-		if err != nil {
-			return fmt.Errorf("error constructing graphql field name: %w", err)
+		var graphTypeName string
+		// Arrays require further traversal before getting the final type name.
+		if *fieldType == "array" {
+			items, err := getOrderedMapKey[orderedmap.OrderedMap](property, "items")
+			if err != nil {
+				return fmt.Errorf("encountered error parsing the items list for %q: %w", key, err)
+			}
+
+			arrayTypeRaw, ok := items.Get("type")
+			if !ok {
+				return fmt.Errorf("array %q did not have a type defined in the items list", key)
+			}
+
+			arrayType := arrayTypeRaw.(string)
+
+			if arrayType == "object" {
+				return propertiesWalk(items, schemas, nil, arrayType)
+			} else {
+				itemTypeFormatted, err := constructFieldName(key, arrayType)
+				if err != nil {
+					return err
+				}
+
+				graphTypeName = fmt.Sprintf("[%s]", itemTypeFormatted)
+			}
+		} else {
+			graphTypeName, err = constructFieldName(key, *fieldType)
+			if err != nil {
+				return fmt.Errorf("error constructing graphql field name: %w", err)
+			}
 		}
 
 		schema.Fields = append(schema.Fields, Field{
@@ -140,15 +167,6 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 		})
 		schema.TypeName = typeName
 
-		if *fieldType == "array" {
-			items, err := getOrderedMapKey[orderedmap.OrderedMap](property, "items")
-			if err != nil {
-				return err
-			}
-
-			fmt.Println(items)
-		}
-
 		if *fieldType == "object" {
 			properties, err := getOrderedMapKey[orderedmap.OrderedMap](property, "properties")
 			if err != nil {
@@ -158,7 +176,7 @@ func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []s
 			// Avoid further traversal if there are no properties.
 			// TODO; should this be an error?
 			if properties.Keys() == nil {
-				continue
+				return fmt.Errorf("encountered object %q with an empty properties list", key)
 			}
 
 			reqRaw, err := getOrderedMapKey[[]any](property, "required")
@@ -225,6 +243,8 @@ func constructFieldName(name string, typeName string) (string, error) {
 		return "String", nil
 	case "object":
 		return title(name), nil
+	case "array":
+		return "[]", nil
 	default:
 		return "", fmt.Errorf("unrecognized type name: %q", typeName)
 	}
