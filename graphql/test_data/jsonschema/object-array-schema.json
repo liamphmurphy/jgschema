@@ -1,0 +1,23 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ObjectArraySchema",
+    "description": "A schema with an array of objects.",
+    "type": "object",
+    "properties": {
+        "arrayObjectField": {
+            "description": "Sample array field description.",
+            "type": "array",
+            "items": {
+                "someObject": {
+                    "type": "object",
+                    "properties": {
+                        "objectStringField": {
+                            "type": "string",
+                            "description": "A string field in an object."
+                        }
+                    }
+                }
+            }
+        }
+    } 
+}

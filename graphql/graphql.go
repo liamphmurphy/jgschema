@@ -71,6 +71,15 @@ func transform(jsonSchema *jsonschema.Schema) ([]Schema, error) {
 		}
 	}
 
+	if jsonSchema.AnyOf != nil {
+		for _, anyOf := range jsonSchema.AllOf {
+			err := processRef(anyOf.Ref, &parent, &schemas)
+			if err != nil {
+				return nil, fmt.Errorf("error processing anyOf schema %q: %w", anyOf.Ref, err)
+			}
+		}
+	}
+
 	schemas[0] = parent
 
 	return schemas, nil
@@ -97,7 +106,7 @@ func walk(node any, parent *Schema, schemas *[]Schema, typeName string) error {
 		if err != nil {
 			return fmt.Errorf("error getting items declaration: %w", err)
 		}
-		return walkArray(items, parent)
+		return walkArray(items, parent, schemas)
 	}
 	return nil
 }
@@ -130,6 +139,7 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 			return fmt.Errorf("error constructing field type: %w", err)
 		}
 
+		// Declare the field early and let any further traversal operations update the field if needed.
 		field := Field{
 			Name:        key,
 			Description: *description,
@@ -149,7 +159,12 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 			if err := walk(property, &schema, schemas, typeArray); err != nil {
 				return fmt.Errorf("error walking down array %q: %w", key, err)
 			}
+
+			if schema.Fields != nil {
+				field.Type = schema.Fields[0].Type
+			}
 		}
+
 		parent.Fields = append(parent.Fields, field)
 
 	}
@@ -157,17 +172,17 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 	return nil
 }
 
-func walkArray(root *orderedmap.OrderedMap, parent *Schema) error {
+func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) error {
 	// .Keys() will contain the list of fields from an items declaration.
 	for _, key := range root.Keys() {
+		raw, ok := root.Get(key)
+		if !ok {
+			return fmt.Errorf("key value not found")
+		}
 		switch key {
 		case "type":
-			typeRaw, ok := root.Get(key)
-			if !ok {
-				return fmt.Errorf("type value not found")
-			}
 
-			fieldType := typeRaw.(string)
+			fieldType := raw.(string)
 
 			// Depending on the type, the casing can change (mainly with objects), so some extra formatting is needed.
 			formattedFieldType, err := constructFieldName(key, fieldType)
@@ -179,6 +194,24 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema) error {
 			}
 
 			parent.Fields = append(parent.Fields, field)
+		default:
+			// This key could be an object, so entertain that first before erroring on an unknown key.
+			properties, err := extractLeaf(raw, "properties")
+			if err != nil {
+				return fmt.Errorf("unknown key in array items: %q", key)
+			}
+			newSchema := Schema{
+				TypeName: title(key),
+				Fields:   []Field{},
+			}
+			if err = walkObject(properties, &newSchema, schemas); err != nil {
+				return fmt.Errorf("error walking down object array item %q: %w", key, err)
+			}
+
+			// Merge newSchema back into the parent.
+			parent.Fields = append(parent.Fields, newSchema.Fields...)
+			//parent.Fields[0].Type = "[SomeObject]"
+			*schemas = append(*schemas, newSchema)
 		}
 	}
 
@@ -194,8 +227,8 @@ func processRef(refPath string, parent *Schema, schemas *[]Schema) error {
 		return fmt.Errorf("error reading schema file: %w", err)
 	}
 
-	var allOfGraphQL Schema
-	if err := walk(refSchema.Properties, &allOfGraphQL, schemas, typeRoot); err != nil {
+	var refGraphQL Schema
+	if err := walk(refSchema.Properties, &refGraphQL, schemas, typeRoot); err != nil {
 		return fmt.Errorf("error processing allOf schema %q: %w", refSchema.Title, err)
 	}
 
@@ -204,8 +237,8 @@ func processRef(refPath string, parent *Schema, schemas *[]Schema) error {
 		Description: refSchema.Description,
 		Type:        refSchema.Title,
 	})
-	allOfGraphQL.TypeName = refSchema.Title
-	*schemas = append(*schemas, allOfGraphQL)
+	refGraphQL.TypeName = refSchema.Title
+	*schemas = append(*schemas, refGraphQL)
 
 	return nil
 }
