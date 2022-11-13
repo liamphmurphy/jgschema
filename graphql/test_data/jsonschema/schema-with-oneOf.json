@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "AllOfSchema",
+    "title": "OneOfSchema",
     "description": "A schema with a oneOf ref.",
     "type": "object",
     "oneOf": [

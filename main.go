@@ -20,7 +20,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	generateSchema, err := graphql.Generate(*graphSchema)
+	generateSchema, err := graphql.Generate(graphSchema)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

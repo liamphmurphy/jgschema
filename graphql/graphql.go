@@ -9,6 +9,11 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
+const (
+	typeObject = "object"
+	typeRoot   = "root"
+)
+
 // Schema defines the elements of a GraphQL schema in the context of this program.
 type Schema struct {
 	TypeName string
@@ -24,184 +29,166 @@ type Field struct {
 	Array       bool
 }
 
-// Transform handles the logic of transforming a given jsonschema.Schema struct into a GraphQL schema struct.
-func Transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
+// Transform is a public wrapper around transform, where an already made jsonschema.Schema is used.
+func Transform(jsonSchema *jsonschema.Schema) ([]Schema, error) {
 	return transform(jsonSchema)
 }
 
-// TransformFromFile creats a jsonschema.Struct from a file path and transforms it into a GraphQL schema struct.
-func TransformFromFile(path string) (*[]Schema, error) {
-	schema, err := jsonutils.ReadSchema(path)
-	if err != nil {
-		return nil, fmt.Errorf("error reading the %q schema defined in allOf block: %w", path, err)
+// transform handles the logic of transforming a given jsonschema.Schema struct into a GraphQL schema struct.
+func transform(jsonSchema *jsonschema.Schema) ([]Schema, error) {
+	if jsonSchema.Title == "" {
+		return nil, fmt.Errorf("please provide a title for the schema")
 	}
 
-	return transform(schema)
-}
-
-func transform(jsonSchema *jsonschema.Schema) (*[]Schema, error) {
-	// schemas acts as the "master list" of schemas to be generated.
-	var schemas []Schema
-
-	err := propertiesWalk(jsonSchema.Properties, &schemas, jsonSchema.Required, jsonSchema.Title)
-	if err != nil {
-		return nil, fmt.Errorf("error walking down the properties tree for schema %q", jsonSchema.Title)
+	parent := Schema{
+		TypeName: jsonSchema.Title,
+		Fields:   []Field{},
 	}
 
-	// Handle any allOf schemas and merge fields to the parent schema.
-	allOfSchemas, err := processRefSchemas(jsonSchema.AllOf, &schemas[0], true)
-	if err != nil {
-		return nil, fmt.Errorf("error processing allOf reference schemas: %w", err)
+	schemas := []Schema{{}}
+
+	// To go down the properties tree, we will begin a recursive walk.
+	if err := walk(jsonSchema.Properties, &parent, &schemas, typeRoot); err != nil {
+		return nil, fmt.Errorf("error when walking down the properties tree: %w", err)
 	}
 
-	// Handle any oneOf schemas. Does not merge back into the parent.
-	oneOfSchemas, err := processRefSchemas(jsonSchema.OneOf, nil, false)
-	if err != nil {
-		return nil, fmt.Errorf("error processing oneOf reference schemas: %w", err)
-	}
-
-	// Handle all anyOf schemas. Does not merge back into the parent.
-	anyOfSchemas, err := processRefSchemas(jsonSchema.AnyOf, &schemas[0], false)
-	if err != nil {
-		return nil, fmt.Errorf("error processing anyOf reference schemas: %w", err)
-	}
-
-	schemas = append(schemas, *allOfSchemas...)
-	schemas = append(schemas, *oneOfSchemas...)
-	schemas = append(schemas, *anyOfSchemas...)
-
-	return &schemas, nil
-}
-
-// processRefSchemas processes any referenced schemas such as from allOf, oneOf, anyOf declarations.
-func processRefSchemas(refSchemas []*jsonschema.Schema, parent *Schema, mergeIntoParent bool) (*[]Schema, error) {
-	var newSchemas []Schema
-	for _, schema := range refSchemas {
-		refSchema, err := jsonutils.ReadSchema(schema.Ref)
-		if err != nil {
-			return nil, fmt.Errorf("error reading ref json schema: %w", err)
-		}
-
-		refSchemas, err := Transform(refSchema)
-		if err != nil {
-			return nil, fmt.Errorf("error processing new ref schemas: %w", err)
-		}
-
-		newSchemas = append(newSchemas, *refSchemas...)
-
-		if mergeIntoParent {
-			// Assign a field in the parent schema referencing the new schema.
-			for _, newSchema := range *refSchemas {
-				parent.Fields = append(parent.Fields, Field{
-					Name:        lowerTitle(newSchema.TypeName),
-					Description: refSchema.Description,
-					Type:        title(newSchema.TypeName),
-				})
+	if jsonSchema.AllOf != nil {
+		for _, allOf := range jsonSchema.AllOf {
+			err := processRef(allOf.Ref, &parent, &schemas)
+			if err != nil {
+				return nil, fmt.Errorf("error processing allOf schema %q: %w", allOf.Ref, err)
 			}
 		}
 	}
 
-	return &newSchemas, nil
+	if jsonSchema.OneOf != nil {
+		for _, oneOf := range jsonSchema.OneOf {
+			err := processRef(oneOf.Ref, &parent, &schemas)
+			if err != nil {
+				return nil, fmt.Errorf("error processing oneOf schema %q: %w", oneOf.Ref, err)
+			}
+		}
+	}
+
+	schemas[0] = parent
+
+	return schemas, nil
 }
 
-// propertiesWalk walks down the properties tree of a JSON schema, and builds schemas along the way.
-func propertiesWalk(root *orderedmap.OrderedMap, schemas *[]Schema, required []string, typeName string) error {
-	schema := Schema{
-		TypeName: typeName,
-		Fields:   []Field{},
+// walk facilitates the different node types (top of the schema, objects, arrays, etc.) and walks down whatever tree
+// that comes from the passed in node.
+func walk(node any, parent *Schema, schemas *[]Schema, typeName string) error {
+	switch typeName {
+	case typeRoot:
+		rootOrderedMap, ok := node.(*orderedmap.OrderedMap)
+		if !ok {
+			return fmt.Errorf("error asserting orderedMap on root node")
+		}
+		return walkObject(rootOrderedMap, parent, schemas)
+	case typeObject:
+		properties, err := extractProperties(node)
+		if err != nil {
+			return fmt.Errorf("error getting properties declaration from: %w", err)
+		}
+		return walkObject(properties, parent, schemas)
 	}
+	return nil
+}
+
+func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) error {
+	// .Keys() will contain the list of fields from a properties declaration.
 	for _, key := range root.Keys() {
+		schema := Schema{Fields: []Field{}}
 		property, ok := root.Get(key)
 		if !ok {
-			continue
+			return fmt.Errorf("property with key %q not found in walkObject", key)
 		}
+
+		schema.TypeName = key
 
 		description, err := getOrderedMapKey[string](property, "description")
 		if err != nil {
-			return err
+			return fmt.Errorf("error on field %q getting description: %w", key, err)
 		}
 
 		fieldType, err := getOrderedMapKey[string](property, "type")
 		if err != nil {
-			return err
+			return fmt.Errorf("error on field %q getting object field type: %w", key, err)
 		}
 
-		var graphTypeName string
-		// Arrays require further traversal before getting the final type name.
-		if *fieldType == "array" {
-			items, err := getOrderedMapKey[orderedmap.OrderedMap](property, "items")
-			if err != nil {
-				return fmt.Errorf("encountered error parsing the items list for %q: %w", key, err)
-			}
-
-			arrayTypeRaw, ok := items.Get("type")
-			if !ok {
-				return fmt.Errorf("array %q did not have a type defined in the items list", key)
-			}
-
-			arrayType := arrayTypeRaw.(string)
-
-			if arrayType == "object" {
-				return propertiesWalk(items, schemas, nil, arrayType)
-			} else {
-				itemTypeFormatted, err := constructFieldName(key, arrayType)
-				if err != nil {
-					return err
-				}
-
-				graphTypeName = fmt.Sprintf("[%s]", itemTypeFormatted)
-			}
-		} else {
-			graphTypeName, err = constructFieldName(key, *fieldType)
-			if err != nil {
-				return fmt.Errorf("error constructing graphql field name: %w", err)
-			}
+		// Depending on the type, the casing can change (mainly with objects), so some extra formatting is needed.
+		formattedFieldType, err := constructFieldName(key, *fieldType)
+		if err != nil {
+			return fmt.Errorf("error constructing field type: %w", err)
 		}
 
-		schema.Fields = append(schema.Fields, Field{
-			Name:        lowerTitle(key),
-			Type:        graphTypeName,
+		field := Field{
+			Name:        key,
 			Description: *description,
-			Required:    contains(required, key),
+			Type:        formattedFieldType,
 			Array:       isArray(*fieldType),
-		})
-		schema.TypeName = typeName
-
-		if *fieldType == "object" {
-			properties, err := getOrderedMapKey[orderedmap.OrderedMap](property, "properties")
-			if err != nil {
-				return err
-			}
-
-			// Avoid further traversal if there are no properties.
-			// TODO; should this be an error?
-			if properties.Keys() == nil {
-				return fmt.Errorf("encountered object %q with an empty properties list", key)
-			}
-
-			reqRaw, err := getOrderedMapKey[[]any](property, "required")
-			if err != nil {
-				return err
-			}
-
-			required := make([]string, len(*reqRaw))
-			for i, req := range *reqRaw {
-				reqStr := req.(string)
-				required[i] = reqStr
-			}
-			*schemas = append(*schemas, schema)
-			return propertiesWalk(properties, schemas, required, title(key))
 		}
+
+		parent.Fields = append(parent.Fields, field)
+		if *fieldType == typeObject {
+			schema.TypeName = title(key)
+
+			if err := walk(property, &schema, schemas, typeObject); err != nil {
+				return fmt.Errorf("error walking down nested object %q: %w", key, err)
+			}
+
+			*schemas = append(*schemas, schema)
+		}
+
 	}
-	*schemas = append(*schemas, schema)
+
 	return nil
+}
+
+// processRef generalizes the logic for processing allOf, oneOf, and anyOf refs.
+// Since walk isn't smart enough to know when a ref is being passed down, we manually
+// append the results of the walk to the parent (root) and schemas list.
+func processRef(refPath string, parent *Schema, schemas *[]Schema) error {
+	refSchema, err := jsonutils.ReadSchema(refPath)
+	if err != nil {
+		return fmt.Errorf("error reading schema file: %w", err)
+	}
+
+	var allOfGraphQL Schema
+	if err := walk(refSchema.Properties, &allOfGraphQL, schemas, typeRoot); err != nil {
+		return fmt.Errorf("error processing allOf schema %q: %w", refSchema.Title, err)
+	}
+
+	parent.Fields = append(parent.Fields, Field{
+		Name:        lowerTitle(refSchema.Title),
+		Description: refSchema.Description,
+		Type:        refSchema.Title,
+	})
+	allOfGraphQL.TypeName = refSchema.Title
+	*schemas = append(*schemas, allOfGraphQL)
+
+	return nil
+}
+
+func extractProperties(node any) (*orderedmap.OrderedMap, error) {
+	orderedMap, err := getOrderedMapKey[orderedmap.OrderedMap](node, "properties")
+	if err != nil {
+		return nil, fmt.Errorf("error extracting properties from node: %w", err)
+	}
+
+	return orderedMap, nil
 }
 
 // assertOrderedMapValue generically automates the tedium of getting a value out of an orderedmap.OrderedMap key/value pair.
 func getOrderedMapKey[T any](property any, key string) (*T, error) {
 	orderedMap, ok := property.(orderedmap.OrderedMap)
 	if !ok {
-		return new(T), fmt.Errorf("error asserting that property of type %T is a %T", orderedMap, orderedmap.OrderedMap{})
+		retry, ok := property.(*orderedmap.OrderedMap)
+		if !ok {
+			return new(T), fmt.Errorf("error asserting that property of type %T is a %T", orderedMap, orderedmap.OrderedMap{})
+		} else {
+			orderedMap = *retry
+		}
 	}
 
 	value, ok := orderedMap.Get(key)
