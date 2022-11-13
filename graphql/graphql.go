@@ -12,6 +12,7 @@ import (
 const (
 	typeObject = "object"
 	typeRoot   = "root"
+	typeArray  = "array"
 )
 
 // Schema defines the elements of a GraphQL schema in the context of this program.
@@ -86,11 +87,17 @@ func walk(node any, parent *Schema, schemas *[]Schema, typeName string) error {
 		}
 		return walkObject(rootOrderedMap, parent, schemas)
 	case typeObject:
-		properties, err := extractProperties(node)
+		properties, err := extractLeaf(node, "properties")
 		if err != nil {
-			return fmt.Errorf("error getting properties declaration from: %w", err)
+			return fmt.Errorf("error getting properties declaration: %w", err)
 		}
 		return walkObject(properties, parent, schemas)
+	case typeArray:
+		items, err := extractLeaf(node, "items")
+		if err != nil {
+			return fmt.Errorf("error getting items declaration: %w", err)
+		}
+		return walkArray(items, parent)
 	}
 	return nil
 }
@@ -106,9 +113,10 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 
 		schema.TypeName = key
 
-		description, err := getOrderedMapKey[string](property, "description")
-		if err != nil {
-			return fmt.Errorf("error on field %q getting description: %w", key, err)
+		// Ignore error on description as it isn't required to build the GraphQL schema.
+		description, _ := getOrderedMapKey[string](property, "description")
+		if description == nil {
+			*description = ""
 		}
 
 		fieldType, err := getOrderedMapKey[string](property, "type")
@@ -129,7 +137,6 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 			Array:       isArray(*fieldType),
 		}
 
-		parent.Fields = append(parent.Fields, field)
 		if *fieldType == typeObject {
 			schema.TypeName = title(key)
 
@@ -138,8 +145,41 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 			}
 
 			*schemas = append(*schemas, schema)
+		} else if *fieldType == typeArray {
+			if err := walk(property, &schema, schemas, typeArray); err != nil {
+				return fmt.Errorf("error walking down array %q: %w", key, err)
+			}
 		}
+		parent.Fields = append(parent.Fields, field)
 
+	}
+
+	return nil
+}
+
+func walkArray(root *orderedmap.OrderedMap, parent *Schema) error {
+	// .Keys() will contain the list of fields from an items declaration.
+	for _, key := range root.Keys() {
+		switch key {
+		case "type":
+			typeRaw, ok := root.Get(key)
+			if !ok {
+				return fmt.Errorf("type value not found")
+			}
+
+			fieldType := typeRaw.(string)
+
+			// Depending on the type, the casing can change (mainly with objects), so some extra formatting is needed.
+			formattedFieldType, err := constructFieldName(key, fieldType)
+			if err != nil {
+				return fmt.Errorf("error constructing field type: %w", err)
+			}
+			field := Field{
+				Type: fmt.Sprintf("[%s]", formattedFieldType),
+			}
+
+			parent.Fields = append(parent.Fields, field)
+		}
 	}
 
 	return nil
@@ -170,10 +210,10 @@ func processRef(refPath string, parent *Schema, schemas *[]Schema) error {
 	return nil
 }
 
-func extractProperties(node any) (*orderedmap.OrderedMap, error) {
-	orderedMap, err := getOrderedMapKey[orderedmap.OrderedMap](node, "properties")
+func extractLeaf(node any, key string) (*orderedmap.OrderedMap, error) {
+	orderedMap, err := getOrderedMapKey[orderedmap.OrderedMap](node, key)
 	if err != nil {
-		return nil, fmt.Errorf("error extracting properties from node: %w", err)
+		return nil, fmt.Errorf("error extracting %q from node: %w", key, err)
 	}
 
 	return orderedMap, nil

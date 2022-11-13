@@ -10,19 +10,6 @@
             "items": {
                 "type": "string"
             }
-        },
-        "arrayObjectField": {
-            "description": "Sample array field description.",
-            "type": "array",
-            "items": {
-                "type": "object",
-                "description": "Sample object array item field description.",
-                "properties": {
-                    "objectField": {
-                        "type": "string"
-                    }
-                }
-            }
         }
     } 
 }

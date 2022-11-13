@@ -94,7 +94,7 @@ func TestTransform(t *testing.T) {
 			},
 			wantErr: nil,
 		},
-		/*{
+		{
 			description: "should process a JSON schema with an array.",
 			inputSchema: fmt.Sprintf("%s/array-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
@@ -102,20 +102,16 @@ func TestTransform(t *testing.T) {
 					TypeName: "ArraySchema",
 					Fields: []Field{
 						{
-							Name:        "sampleField",
-							Type:        "String",
-							Description: "Sample field description.",
-						},
-						{
-							Name:        "sampleObjectField",
-							Type:        "SampleObjectField",
-							Description: "Sample object field description.",
+							Name:        "arrayStringField",
+							Type:        "[String]",
+							Description: "Sample array field description.",
+							Array:       true,
 						},
 					},
 				},
 			},
 			wantErr: nil,
-		},*/
+		},
 		{
 			description: "should process a JSON schema with an allOf ref.",
 			inputSchema: fmt.Sprintf("%s/schema-with-allOf.json", schemaTestDir),
