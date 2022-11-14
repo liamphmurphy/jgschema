@@ -27,7 +27,7 @@ Below are the list of features that are either done or need to be worked on.
 - ✅ Translates the following JSON types: scalars (strings, integers, numbers, boolean) and objects.
 - ✅ Support allOf in any place in the properties tree.
 - ✅ GraphQL file generator.
-- Support arrays.
+- ✅ Support arrays.
 - Support definitions, both file and inline.
 - Cobra CLI interface.
 - Support running from Docker.

@@ -147,7 +147,8 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 			Array:       isArray(*fieldType),
 		}
 
-		if *fieldType == typeObject {
+		switch *fieldType {
+		case typeObject:
 			schema.TypeName = title(key)
 
 			if err := walk(property, &schema, schemas, typeObject); err != nil {
@@ -155,11 +156,12 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 			}
 
 			*schemas = append(*schemas, schema)
-		} else if *fieldType == typeArray {
+		case typeArray:
 			if err := walk(property, &schema, schemas, typeArray); err != nil {
 				return fmt.Errorf("error walking down array %q: %w", key, err)
 			}
 
+			// TODO: don't assume index 0 for the field
 			if schema.Fields != nil {
 				field.Type = schema.Fields[0].Type
 			}
@@ -184,6 +186,24 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) e
 
 			fieldType := raw.(string)
 
+			if fieldType == typeObject {
+				// TODO: re-use code from here and the default case.
+				newSchema := Schema{
+					TypeName: title(parent.TypeName),
+					Fields:   []Field{},
+				}
+				if err := walk(root, &newSchema, schemas, typeObject); err != nil {
+					return fmt.Errorf("error walking down object array item %q: %w", key, err)
+				}
+
+				// Merge newSchema back into the parent.
+				parent.Fields = append(parent.Fields, newSchema.Fields...)
+				parent.Fields[0].Type = fmt.Sprintf("[%s]", title(parent.TypeName))
+				*schemas = append(*schemas, newSchema)
+
+				return nil
+			}
+
 			// Depending on the type, the casing can change (mainly with objects), so some extra formatting is needed.
 			formattedFieldType, err := constructFieldName(key, fieldType)
 			if err != nil {
@@ -201,7 +221,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) e
 				return fmt.Errorf("unknown key in array items: %q", key)
 			}
 			newSchema := Schema{
-				TypeName: title(key),
+				TypeName: title(parent.TypeName),
 				Fields:   []Field{},
 			}
 			if err = walkObject(properties, &newSchema, schemas); err != nil {
@@ -210,7 +230,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) e
 
 			// Merge newSchema back into the parent.
 			parent.Fields = append(parent.Fields, newSchema.Fields...)
-			//parent.Fields[0].Type = "[SomeObject]"
+			parent.Fields[0].Type = fmt.Sprintf("[%s]", title(parent.TypeName))
 			*schemas = append(*schemas, newSchema)
 		}
 	}
@@ -275,15 +295,6 @@ func getOrderedMapKey[T any](property any, key string) (*T, error) {
 	}
 
 	return &assertion, nil
-}
-
-func contains(requiredFields []string, field string) bool {
-	for _, req := range requiredFields {
-		if req == field {
-			return true
-		}
-	}
-	return false
 }
 
 func isArray(typeName string) bool {
