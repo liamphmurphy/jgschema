@@ -95,6 +95,38 @@ func TestTransform(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			description: "should process a JSON schema with a nested object using a ref.",
+			inputSchema: fmt.Sprintf("%s/def-schema.json", schemaTestDir),
+			wantGraphQL: []Schema{
+				{
+					TypeName: "NestedSchema",
+					Fields: []Field{
+						{
+							Name:        "sampleField",
+							Type:        "String",
+							Description: "Sample field description.",
+						},
+						{
+							Name:        "sampleObjectField",
+							Type:        "SampleObjectField",
+							Description: "Sample object field description.",
+						},
+					},
+				},
+				{
+					TypeName: "SampleObjectField",
+					Fields: []Field{
+						{
+							Name:        "nestedField",
+							Type:        "Int",
+							Description: "Nested object field description.",
+						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
 			description: "should process a JSON schema with a simple array.",
 			inputSchema: fmt.Sprintf("%s/array-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{

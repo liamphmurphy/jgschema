@@ -1,0 +1,27 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "NestedSchema",
+    "description": "A schema with a single nested object field.",
+    "type": "object",
+    "properties": {
+        "sampleField": {
+            "description": "Sample field description.",
+            "type": "string"
+        },
+        "sampleObjectField": {
+            "$ref": "#/$defs/sampleObject"
+        }
+    },
+    "$defs": {
+        "sampleObject": {
+            "description": "Sample object field description.",
+            "type": "object",
+            "properties": {
+                "nestedField": {
+                    "description": "Nested object field description.",
+                    "type": "integer"
+                }
+            }
+        }
+    } 
+}

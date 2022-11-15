@@ -3,6 +3,7 @@ package graphql
 import (
 	"fmt"
 	"jgschema/jsonutils"
+	"strings"
 	"unicode"
 
 	"github.com/iancoleman/orderedmap"
@@ -49,13 +50,13 @@ func transform(jsonSchema *jsonschema.Schema) ([]Schema, error) {
 	schemas := []Schema{{}}
 
 	// To go down the properties tree, we will begin a recursive walk.
-	if err := walk(jsonSchema.Properties, &parent, &schemas, typeRoot); err != nil {
+	if err := walk(jsonSchema.Properties, &parent, &schemas, typeRoot, jsonSchema.Definitions); err != nil {
 		return nil, fmt.Errorf("error when walking down the properties tree: %w", err)
 	}
 
 	if jsonSchema.AllOf != nil {
 		for _, allOf := range jsonSchema.AllOf {
-			err := processRef(allOf.Ref, &parent, &schemas)
+			err := processRefFile(allOf.Ref, &parent, &schemas)
 			if err != nil {
 				return nil, fmt.Errorf("error processing allOf schema %q: %w", allOf.Ref, err)
 			}
@@ -64,7 +65,7 @@ func transform(jsonSchema *jsonschema.Schema) ([]Schema, error) {
 
 	if jsonSchema.OneOf != nil {
 		for _, oneOf := range jsonSchema.OneOf {
-			err := processRef(oneOf.Ref, &parent, &schemas)
+			err := processRefFile(oneOf.Ref, &parent, &schemas)
 			if err != nil {
 				return nil, fmt.Errorf("error processing oneOf schema %q: %w", oneOf.Ref, err)
 			}
@@ -73,7 +74,7 @@ func transform(jsonSchema *jsonschema.Schema) ([]Schema, error) {
 
 	if jsonSchema.AnyOf != nil {
 		for _, anyOf := range jsonSchema.AllOf {
-			err := processRef(anyOf.Ref, &parent, &schemas)
+			err := processRefFile(anyOf.Ref, &parent, &schemas)
 			if err != nil {
 				return nil, fmt.Errorf("error processing anyOf schema %q: %w", anyOf.Ref, err)
 			}
@@ -87,31 +88,31 @@ func transform(jsonSchema *jsonschema.Schema) ([]Schema, error) {
 
 // walk facilitates the different node types (top of the schema, objects, arrays, etc.) and walks down whatever tree
 // that comes from the passed in node.
-func walk(node any, parent *Schema, schemas *[]Schema, typeName string) error {
+func walk(node any, parent *Schema, schemas *[]Schema, typeName string, definitions jsonschema.Definitions) error {
 	switch typeName {
 	case typeRoot:
 		rootOrderedMap, ok := node.(*orderedmap.OrderedMap)
 		if !ok {
 			return fmt.Errorf("error asserting orderedMap on root node")
 		}
-		return walkObject(rootOrderedMap, parent, schemas)
+		return walkObject(rootOrderedMap, parent, schemas, definitions)
 	case typeObject:
 		properties, err := extractLeaf(node, "properties")
 		if err != nil {
 			return fmt.Errorf("error getting properties declaration: %w", err)
 		}
-		return walkObject(properties, parent, schemas)
+		return walkObject(properties, parent, schemas, definitions)
 	case typeArray:
 		items, err := extractLeaf(node, "items")
 		if err != nil {
 			return fmt.Errorf("error getting items declaration: %w", err)
 		}
-		return walkArray(items, parent, schemas)
+		return walkArray(items, parent, schemas, definitions)
 	}
 	return nil
 }
 
-func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) error {
+func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, definitions jsonschema.Definitions) error {
 	// .Keys() will contain the list of fields from a properties declaration.
 	for _, key := range root.Keys() {
 		schema := Schema{Fields: []Field{}}
@@ -121,6 +122,24 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 		}
 
 		schema.TypeName = key
+
+		potentialRef, _ := getOrderedMapKey[string](property, "$ref")
+		if *potentialRef != "" {
+			refPath := parseRefPath(*potentialRef)
+			// TODO: if empty, check if a file path
+
+			definition := definitions[refPath]
+			if definition == nil {
+				return fmt.Errorf("definitions list does not contain %q", refPath)
+			}
+
+			if err := processRef(definition, &schema, schemas); err != nil {
+				return fmt.Errorf("error processing ref at %q", key)
+			}
+
+			parent.Fields = append(parent.Fields, schema.Fields...)
+			return nil
+		}
 
 		// Ignore error on description as it isn't required to build the GraphQL schema.
 		description, _ := getOrderedMapKey[string](property, "description")
@@ -151,13 +170,13 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 		case typeObject:
 			schema.TypeName = title(key)
 
-			if err := walk(property, &schema, schemas, typeObject); err != nil {
+			if err := walk(property, &schema, schemas, typeObject, definitions); err != nil {
 				return fmt.Errorf("error walking down nested object %q: %w", key, err)
 			}
 
 			*schemas = append(*schemas, schema)
 		case typeArray:
-			if err := walk(property, &schema, schemas, typeArray); err != nil {
+			if err := walk(property, &schema, schemas, typeArray, definitions); err != nil {
 				return fmt.Errorf("error walking down array %q: %w", key, err)
 			}
 
@@ -174,7 +193,7 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) 
 	return nil
 }
 
-func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) error {
+func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, definitions jsonschema.Definitions) error {
 	// .Keys() will contain the list of fields from an items declaration.
 	for _, key := range root.Keys() {
 		raw, ok := root.Get(key)
@@ -192,7 +211,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) e
 					TypeName: title(parent.TypeName),
 					Fields:   []Field{},
 				}
-				if err := walk(root, &newSchema, schemas, typeObject); err != nil {
+				if err := walk(root, &newSchema, schemas, typeObject, definitions); err != nil {
 					return fmt.Errorf("error walking down object array item %q: %w", key, err)
 				}
 
@@ -224,7 +243,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) e
 				TypeName: title(parent.TypeName),
 				Fields:   []Field{},
 			}
-			if err = walkObject(properties, &newSchema, schemas); err != nil {
+			if err = walkObject(properties, &newSchema, schemas, definitions); err != nil {
 				return fmt.Errorf("error walking down object array item %q: %w", key, err)
 			}
 
@@ -238,26 +257,35 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema) e
 	return nil
 }
 
-// processRef generalizes the logic for processing allOf, oneOf, and anyOf refs.
-// Since walk isn't smart enough to know when a ref is being passed down, we manually
-// append the results of the walk to the parent (root) and schemas list.
-func processRef(refPath string, parent *Schema, schemas *[]Schema) error {
+func processRefFile(refPath string, parent *Schema, schemas *[]Schema) error {
 	refSchema, err := jsonutils.ReadSchema(refPath)
 	if err != nil {
 		return fmt.Errorf("error reading schema file: %w", err)
 	}
 
+	return processRef(refSchema, parent, schemas)
+}
+
+// processRef generalizes the logic for processing allOf, oneOf, and anyOf refs.
+// Since walk isn't smart enough to know when a ref is being passed down, we manually
+// append the results of the walk to the parent (root) and schemas list.
+func processRef(schema *jsonschema.Schema, parent *Schema, schemas *[]Schema) error {
 	var refGraphQL Schema
-	if err := walk(refSchema.Properties, &refGraphQL, schemas, typeRoot); err != nil {
-		return fmt.Errorf("error processing allOf schema %q: %w", refSchema.Title, err)
+	if err := walk(schema.Properties, &refGraphQL, schemas, typeRoot, schema.Definitions); err != nil {
+		return fmt.Errorf("error processing allOf schema %q: %w", schema.Title, err)
+	}
+
+	// Some refs won't contain titles, in that case borrow from the parent.
+	if schema.Title == "" {
+		schema.Title = title(parent.TypeName)
 	}
 
 	parent.Fields = append(parent.Fields, Field{
-		Name:        lowerTitle(refSchema.Title),
-		Description: refSchema.Description,
-		Type:        refSchema.Title,
+		Name:        lowerTitle(schema.Title),
+		Description: schema.Description,
+		Type:        schema.Title,
 	})
-	refGraphQL.TypeName = refSchema.Title
+	refGraphQL.TypeName = schema.Title
 	*schemas = append(*schemas, refGraphQL)
 
 	return nil
@@ -323,6 +351,10 @@ func constructFieldName(name string, typeName string) (string, error) {
 
 // title uppercases the first letter of a string, per GraphQL's type naming convention.
 func title(str string) string {
+	if str == "" {
+		return str
+	}
+
 	r := []rune(str)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
@@ -330,7 +362,21 @@ func title(str string) string {
 
 // title lowercases the first letter of a string, per GraphQL's field naming convention.
 func lowerTitle(str string) string {
+	if str == "" {
+		return str
+	}
+
 	r := []rune(str)
 	r[0] = unicode.ToLower(r[0])
 	return string(r)
+}
+
+// parseRefPath splits a "$ref" of the style "#/$defs/fieldName" for finding the definition name.
+func parseRefPath(path string) string {
+	split := strings.Split(path, "/")
+	if len(split) == 0 {
+		return ""
+	}
+
+	return split[len(split)-1]
 }
