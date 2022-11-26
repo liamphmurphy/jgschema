@@ -8,13 +8,14 @@ import (
 )
 
 func main() {
-	jsonSchema, err := jsonutils.ReadSchema("./example.json")
+	schemaPath := "./example.json"
+	jsonSchema, err := jsonutils.ReadSchema(schemaPath)
 	if err != nil {
 		fmt.Printf("error reading JSON schema: %v\n", err)
 		os.Exit(1)
 	}
 
-	graphSchema, err := graphql.Transform(jsonSchema)
+	graphSchema, err := graphql.Transform(jsonSchema, schemaPath)
 	if err != nil {
 		fmt.Printf("error transforming graphql schema: %v", err)
 		os.Exit(1)

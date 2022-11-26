@@ -3,6 +3,7 @@ package graphql
 import (
 	"fmt"
 	"jgschema/jsonutils"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -95,7 +96,7 @@ func TestTransform(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			description: "should process a JSON schema with a nested object using a ref.",
+			description: "should process a JSON schema with a nested object using a definitions ref.",
 			inputSchema: fmt.Sprintf("%s/def-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
@@ -120,6 +121,38 @@ func TestTransform(t *testing.T) {
 							Name:        "nestedField",
 							Type:        "Int",
 							Description: "Nested object field description.",
+						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			description: "should process a JSON schema with a nested object using a file ref.",
+			inputSchema: fmt.Sprintf("%s/def-file-schema.json", schemaTestDir),
+			wantGraphQL: []Schema{
+				{
+					TypeName: "NestedSchema",
+					Fields: []Field{
+						{
+							Name:        "sampleField",
+							Type:        "String",
+							Description: "Sample field description.",
+						},
+						{
+							Name:        "simpleSchema",
+							Type:        "SimpleSchema",
+							Description: "A sample schema for the purpose of testing.",
+						},
+					},
+				},
+				{
+					TypeName: "SimpleSchema",
+					Fields: []Field{
+						{
+							Name:        "sampleField",
+							Type:        "String",
+							Description: "Sample field description.",
 						},
 					},
 				},
@@ -286,12 +319,13 @@ func TestTransform(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			jsonSchema, err := jsonutils.ReadSchema(test.inputSchema)
+			abs, _ := filepath.Abs(test.inputSchema)
+			jsonSchema, err := jsonutils.ReadSchema(abs)
 			if err != nil {
 				t.Fatalf("error reading JSON schema test file at path %q: %v", test.inputSchema, err)
 			}
 
-			schemas, err := transform(jsonSchema)
+			schemas, err := transform(jsonSchema, abs)
 			// TODO; look at some cleaner error testing.
 			if err == nil && test.wantErr != nil {
 				t.Errorf("expected the following error, but did not get any error: %v", test.wantErr)
