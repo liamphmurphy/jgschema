@@ -240,7 +240,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 
 				// Merge newSchema back into the parent.
 				parent.Fields = append(parent.Fields, newSchema.Fields...)
-				parent.Fields[0].Type = fmt.Sprintf("[%s]", title(parent.TypeName))
+				parent.Fields[0].Type = title(parent.TypeName)
 				*schemas = append(*schemas, newSchema)
 
 				return nil
@@ -252,7 +252,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 				return fmt.Errorf("error constructing field type: %w", err)
 			}
 			field := Field{
-				Type: fmt.Sprintf("[%s]", formattedFieldType),
+				Type: formattedFieldType,
 			}
 
 			parent.Fields = append(parent.Fields, field)
@@ -294,7 +294,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 
 			// Merge newSchema back into the parent.
 			parent.Fields = append(parent.Fields, newSchema.Fields...)
-			parent.Fields[0].Type = fmt.Sprintf("[%s]", title(parent.TypeName))
+			parent.Fields[0].Type = title(parent.TypeName)
 			*schemas = append(*schemas, newSchema)
 		}
 	}

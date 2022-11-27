@@ -187,7 +187,7 @@ func TestTransform(t *testing.T) {
 					Fields: []Field{
 						{
 							Name:        "arrayStringField",
-							Type:        "[String]",
+							Type:        "String",
 							Description: "Sample array field description.",
 							Array:       true,
 						},
@@ -205,13 +205,13 @@ func TestTransform(t *testing.T) {
 					Fields: []Field{
 						{
 							Name:        "arrayObjectField",
-							Type:        "[ArrayObjectField]",
+							Type:        "ArrayObjectField",
 							Description: "Sample array field description.",
 							Array:       true,
 						},
 						{
 							Name:        "secondArrayField",
-							Type:        "[SecondArrayField]",
+							Type:        "SecondArrayField",
 							Description: "Sample array field description.",
 							Array:       true,
 						},
