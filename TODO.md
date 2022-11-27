@@ -29,3 +29,5 @@ Related to above, what we do have working:
 
 
 - Fix definition ref parse to use actual field name instead of lower case type name as field name, see definitions ref test 
+
+- add back in required fields

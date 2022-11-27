@@ -223,6 +223,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 					TypeName: title(parent.TypeName),
 					Fields:   []Field{},
 				}
+
 				if err := walk(root, &newSchema, schemas, typeObject, definitions, schemaPath); err != nil {
 					return fmt.Errorf("error walking down object array item %q: %w", key, err)
 				}
@@ -245,6 +246,28 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 			}
 
 			parent.Fields = append(parent.Fields, field)
+		case "$ref":
+			potentialRef, _ := getOrderedMapKey[string](root, "$ref")
+			if potentialRef != nil && *potentialRef != "" {
+				// TODO: remove hard-coded $defs
+				ref, err := getRef(*potentialRef, "$defs", schemaPath, definitions)
+				if err != nil {
+					return fmt.Errorf("error getting ref with path %q: %w", *potentialRef, err)
+				}
+
+				newSchema := Schema{
+					TypeName: title(parent.TypeName),
+					Fields:   []Field{},
+				}
+
+				if err := walkRef(ref, &newSchema, schemas, schemaPath); err != nil {
+					return fmt.Errorf("error processing ref at %q", key)
+				}
+
+				parent.Fields = append(parent.Fields, newSchema.Fields...)
+				return nil
+			}
+
 		default:
 			// This key could be an object, so entertain that first before erroring on an unknown key.
 			properties, err := extractLeaf(raw, "properties")
