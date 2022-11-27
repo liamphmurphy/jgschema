@@ -3,7 +3,6 @@ package graphql
 import (
 	"fmt"
 	"path/filepath"
-	"unicode"
 
 	"github.com/iancoleman/orderedmap"
 	"github.com/invopop/jsonschema"
@@ -32,17 +31,24 @@ type Field struct {
 
 // Transform is a public wrapper around transform, where an already made jsonschema.Schema is used.
 func Transform(jsonSchema *jsonschema.Schema, schemaPath string) ([]Schema, error) {
-	return transform(jsonSchema, schemaPath)
+	return transform(jsonSchema, schemaPath, "") // TODO: pass in custom schema name
 }
 
 // transform handles the logic of transforming a given jsonschema.Schema struct into a GraphQL schema struct.
-func transform(jsonSchema *jsonschema.Schema, schemaPath string) ([]Schema, error) {
+// By default, the file name of the schema (without the extension) with the first letter uppercased will be used as the root schema title.
+// You can pass in a value for customRootTitle to bypass this default.
+func transform(jsonSchema *jsonschema.Schema, schemaPath string, customRootTitle string) ([]Schema, error) {
 	if jsonSchema.Title == "" {
 		return nil, fmt.Errorf("please provide a title for the schema")
 	}
 
+	parentSchemaTitle := customRootTitle
+	if parentSchemaTitle == "" {
+		parentSchemaTitle = title(fileNameNoExtension(schemaPath))
+	}
+
 	parent := Schema{
-		TypeName: jsonSchema.Title,
+		TypeName: parentSchemaTitle,
 		Fields:   []Field{},
 	}
 
@@ -51,7 +57,7 @@ func transform(jsonSchema *jsonschema.Schema, schemaPath string) ([]Schema, erro
 	schemaPath = filepath.Dir(schemaPath)
 
 	// To go down the properties tree, we will begin a recursive walk.
-	if err := walk(jsonSchema.Properties, &parent, &schemas, typeRoot, jsonSchema.Definitions, schemaPath); err != nil {
+	if err := walk(jsonSchema.Properties, jsonSchema.Required, &parent, &schemas, typeRoot, jsonSchema.Definitions, schemaPath); err != nil {
 		return nil, fmt.Errorf("error when walking down the properties tree: %w", err)
 	}
 
@@ -101,20 +107,20 @@ func transform(jsonSchema *jsonschema.Schema, schemaPath string) ([]Schema, erro
 
 // walk facilitates the different node types (top of the schema, objects, arrays, etc.) and walks down whatever tree
 // that comes from the passed in node.
-func walk(node any, parent *Schema, schemas *[]Schema, typeName string, definitions jsonschema.Definitions, schemaPath string) error {
+func walk(node any, required []string, parent *Schema, schemas *[]Schema, typeName string, definitions jsonschema.Definitions, schemaPath string) error {
 	switch typeName {
 	case typeRoot:
 		rootOrderedMap, ok := node.(*orderedmap.OrderedMap)
 		if !ok {
 			return fmt.Errorf("error asserting orderedMap on root node")
 		}
-		return walkObject(rootOrderedMap, parent, schemas, definitions, schemaPath)
+		return walkObject(rootOrderedMap, parent, schemas, required, definitions, schemaPath)
 	case typeObject:
 		properties, err := extractLeaf(node, "properties")
 		if err != nil {
 			return fmt.Errorf("error getting properties declaration: %w", err)
 		}
-		return walkObject(properties, parent, schemas, definitions, schemaPath)
+		return walkObject(properties, parent, schemas, required, definitions, schemaPath)
 	case typeArray:
 		items, err := extractLeaf(node, "items")
 		if err != nil {
@@ -125,7 +131,7 @@ func walk(node any, parent *Schema, schemas *[]Schema, typeName string, definiti
 	return nil
 }
 
-func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, definitions jsonschema.Definitions, schemaPath string) error {
+func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, requiredFields []string, definitions jsonschema.Definitions, schemaPath string) error {
 	// .Keys() will contain the list of fields from a properties declaration.
 	for _, key := range root.Keys() {
 		schema := Schema{Fields: []Field{}}
@@ -152,7 +158,10 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, 
 			return nil
 		}
 
-		// Ignore error on description as it isn't required to build the GraphQL schema.
+		// Any of the below getOrderedMapKey calls that omit an error check is due to those fields not being required
+		// for the purposes of running this program.
+		required, _ := getOrderedMapKey[[]string](property, "required")
+
 		description, _ := getOrderedMapKey[string](property, "description")
 		if description == nil {
 			var blank string
@@ -175,6 +184,7 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, 
 			Name:        key,
 			Description: *description,
 			Type:        formattedFieldType,
+			Required:    contains(key, requiredFields),
 			Array:       isArray(*fieldType),
 		}
 
@@ -182,13 +192,13 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, 
 		case typeObject:
 			schema.TypeName = title(key)
 
-			if err := walk(property, &schema, schemas, typeObject, definitions, schemaPath); err != nil {
+			if err := walk(property, *required, &schema, schemas, typeObject, definitions, schemaPath); err != nil {
 				return fmt.Errorf("error walking down nested object %q: %w", key, err)
 			}
 
 			*schemas = append(*schemas, schema)
 		case typeArray:
-			if err := walk(property, &schema, schemas, typeArray, definitions, schemaPath); err != nil {
+			if err := walk(property, *required, &schema, schemas, typeArray, definitions, schemaPath); err != nil {
 				return fmt.Errorf("error walking down array %q: %w", key, err)
 			}
 
@@ -224,7 +234,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 					Fields:   []Field{},
 				}
 
-				if err := walk(root, &newSchema, schemas, typeObject, definitions, schemaPath); err != nil {
+				if err := walk(root, []string{}, &newSchema, schemas, typeObject, definitions, schemaPath); err != nil {
 					return fmt.Errorf("error walking down object array item %q: %w", key, err)
 				}
 
@@ -278,7 +288,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 				TypeName: title(parent.TypeName),
 				Fields:   []Field{},
 			}
-			if err = walkObject(properties, &newSchema, schemas, definitions, schemaPath); err != nil {
+			if err = walkObject(properties, &newSchema, schemas, []string{}, definitions, schemaPath); err != nil {
 				return fmt.Errorf("error walking down object array item %q: %w", key, err)
 			}
 
@@ -330,6 +340,16 @@ func isArray(typeName string) bool {
 	return typeName == "array"
 }
 
+func contains(s string, ss []string) bool {
+	for _, elem := range ss {
+		if elem == s {
+			return true
+		}
+	}
+
+	return false
+}
+
 // constructFieldName turns a JSON Schema's type (lowercase) into an uppercase name. If an object, use the name of the field.
 func constructFieldName(name string, typeName string) (string, error) {
 	switch typeName {
@@ -348,26 +368,4 @@ func constructFieldName(name string, typeName string) (string, error) {
 	default:
 		return "", fmt.Errorf("unrecognized type name: %q", typeName)
 	}
-}
-
-// title uppercases the first letter of a string, per GraphQL's type naming convention.
-func title(str string) string {
-	if str == "" {
-		return str
-	}
-
-	r := []rune(str)
-	r[0] = unicode.ToUpper(r[0])
-	return string(r)
-}
-
-// title lowercases the first letter of a string, per GraphQL's field naming convention.
-func lowerTitle(str string) string {
-	if str == "" {
-		return str
-	}
-
-	r := []rune(str)
-	r[0] = unicode.ToLower(r[0])
-	return string(r)
 }

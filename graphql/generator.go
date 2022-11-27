@@ -53,7 +53,9 @@ func generate(schemas []Schema, w io.Writer) error {
 			if j != 0 && j != len(schema.Fields) {
 				sb.WriteString("\n")
 			}
-			sb.WriteString(fmt.Sprintf("\t\"%s\"\n", field.Description))
+			if field.Description != "" {
+				sb.WriteString(fmt.Sprintf("\t\"%s\"\n", field.Description))
+			}
 			sb.WriteString(fmt.Sprintf("\t%s: %s\n", field.Name, buildTypeRef(field)))
 		}
 

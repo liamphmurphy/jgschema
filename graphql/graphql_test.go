@@ -37,6 +37,25 @@ func TestTransform(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			description: "should process a very simple JSON schema with a required field",
+			inputSchema: fmt.Sprintf("%s/simple-schema-required.json", schemaTestDir),
+			wantGraphQL: []Schema{
+				{
+					TypeName: "SimpleSchema",
+					Fields: []Field{
+						{
+							Name:        "sampleField",
+							Type:        "String",
+							Required:    true,
+							Description: "Sample field description.",
+						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
+
+		{
 			description: "should process a JSON schema with multiple fields but no nesting.",
 			inputSchema: fmt.Sprintf("%s/one-level-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
@@ -325,7 +344,7 @@ func TestTransform(t *testing.T) {
 				t.Fatalf("error reading JSON schema test file at path %q: %v", test.inputSchema, err)
 			}
 
-			schemas, err := transform(jsonSchema, abs)
+			schemas, err := transform(jsonSchema, abs, jsonSchema.Title)
 			// TODO; look at some cleaner error testing.
 			if err == nil && test.wantErr != nil {
 				t.Errorf("expected the following error, but did not get any error: %v", test.wantErr)

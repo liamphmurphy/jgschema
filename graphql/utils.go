@@ -6,6 +6,7 @@ import (
 	"jgschema/jsonutils"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/invopop/jsonschema"
 )
@@ -57,7 +58,7 @@ func getRef(path, defKeyword, schemaPath string, definitions jsonschema.Definiti
 // append the results of the walk to the parent (root) and schemas list.
 func walkRef(schema *jsonschema.Schema, parent *Schema, schemas *[]Schema, schemaPath string) error {
 	refGraphQL := Schema{TypeName: schema.Title}
-	if err := walk(schema.Properties, &refGraphQL, schemas, typeRoot, schema.Definitions, schemaPath); err != nil {
+	if err := walk(schema.Properties, schema.Required, &refGraphQL, schemas, typeRoot, schema.Definitions, schemaPath); err != nil {
 		return fmt.Errorf("error processing ref schema %q: %w", schema.Title, err)
 	}
 
@@ -74,4 +75,30 @@ func walkRef(schema *jsonschema.Schema, parent *Schema, schemas *[]Schema, schem
 	*schemas = append(*schemas, refGraphQL)
 
 	return nil
+}
+
+func fileNameNoExtension(path string) string {
+	return strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+}
+
+// title uppercases the first letter of a string, per GraphQL's type naming convention.
+func title(str string) string {
+	if str == "" {
+		return str
+	}
+
+	r := []rune(str)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
+}
+
+// title lowercases the first letter of a string, per GraphQL's field naming convention.
+func lowerTitle(str string) string {
+	if str == "" {
+		return str
+	}
+
+	r := []rune(str)
+	r[0] = unicode.ToLower(r[0])
+	return string(r)
 }
