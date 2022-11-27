@@ -2,10 +2,7 @@ package graphql
 
 import (
 	"fmt"
-	"jgschema/jsonutils"
-	"os"
 	"path/filepath"
-	"strings"
 	"unicode"
 
 	"github.com/iancoleman/orderedmap"
@@ -60,7 +57,11 @@ func transform(jsonSchema *jsonschema.Schema, schemaPath string) ([]Schema, erro
 
 	if jsonSchema.AllOf != nil {
 		for _, allOf := range jsonSchema.AllOf {
-			err := processRefFile(allOf.Ref, &parent, &schemas, schemaPath)
+			ref, err := getRef(allOf.Ref, "$defs", schemaPath, jsonSchema.Definitions)
+			if err != nil {
+				return nil, fmt.Errorf("error getting allOf ref %q: %w", allOf.Ref, err)
+			}
+			err = walkRef(ref, &parent, &schemas, schemaPath)
 			if err != nil {
 				return nil, fmt.Errorf("error processing allOf schema %q: %w", allOf.Ref, err)
 			}
@@ -69,7 +70,11 @@ func transform(jsonSchema *jsonschema.Schema, schemaPath string) ([]Schema, erro
 
 	if jsonSchema.OneOf != nil {
 		for _, oneOf := range jsonSchema.OneOf {
-			err := processRefFile(oneOf.Ref, &parent, &schemas, schemaPath)
+			ref, err := getRef(oneOf.Ref, "$defs", schemaPath, jsonSchema.Definitions)
+			if err != nil {
+				return nil, fmt.Errorf("error getting oneOf ref %q: %w", oneOf.Ref, err)
+			}
+			err = walkRef(ref, &parent, &schemas, schemaPath)
 			if err != nil {
 				return nil, fmt.Errorf("error processing oneOf schema %q: %w", oneOf.Ref, err)
 			}
@@ -77,8 +82,12 @@ func transform(jsonSchema *jsonschema.Schema, schemaPath string) ([]Schema, erro
 	}
 
 	if jsonSchema.AnyOf != nil {
-		for _, anyOf := range jsonSchema.AllOf {
-			err := processRefFile(anyOf.Ref, &parent, &schemas, schemaPath)
+		for _, anyOf := range jsonSchema.AnyOf {
+			ref, err := getRef(anyOf.Ref, "$defs", schemaPath, jsonSchema.Definitions)
+			if err != nil {
+				return nil, fmt.Errorf("error getting anyOf ref %q: %w", anyOf.Ref, err)
+			}
+			err = walkRef(ref, &parent, &schemas, schemaPath)
 			if err != nil {
 				return nil, fmt.Errorf("error processing anyOf schema %q: %w", anyOf.Ref, err)
 			}
@@ -128,32 +137,14 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, 
 		schema.TypeName = key
 
 		potentialRef, _ := getOrderedMapKey[string](property, "$ref")
-		if *potentialRef != "" {
-			var definition *jsonschema.Schema
-
-			refPath := parseRefPath(*potentialRef)
-			// Determine the ref path for grabbing the definition; either from a $defs path in the current schema, or a separate file.
-			if refPath != "" {
-				definition = definitions[refPath]
-				if definition == nil {
-					// If the reference to the other schema is not absolute, we'll need to build an absolute path version to ensure correctness.
-					if !filepath.IsAbs(refPath) {
-						refPath = filepath.Clean(fmt.Sprintf("%s/%s", schemaPath, refPath))
-					}
-					if _, err := os.Stat(refPath); err == nil {
-						definition, err = jsonutils.ReadSchema(refPath)
-						if err != nil {
-							return fmt.Errorf("error reading ref file: %w", err)
-						}
-					} else {
-						return fmt.Errorf("provided ref %q was not a valid definition or external schema file: %w", refPath, err)
-					}
-				}
-			} else {
-				return fmt.Errorf("received invalid ref: %q", refPath)
+		if potentialRef != nil && *potentialRef != "" {
+			// TODO: remove hard-coded $defs
+			ref, err := getRef(*potentialRef, "$defs", schemaPath, definitions)
+			if err != nil {
+				return fmt.Errorf("error getting ref with path %q: %w", *potentialRef, err)
 			}
 
-			if err := processRef(definition, &schema, schemas, schemaPath); err != nil {
+			if err := walkRef(ref, parent, schemas, schemaPath); err != nil {
 				return fmt.Errorf("error processing ref at %q", key)
 			}
 
@@ -278,40 +269,6 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 	return nil
 }
 
-func processRefFile(refPath string, parent *Schema, schemas *[]Schema, schemaPath string) error {
-	refSchema, err := jsonutils.ReadSchema(refPath)
-	if err != nil {
-		return fmt.Errorf("error reading schema file: %w", err)
-	}
-
-	return processRef(refSchema, parent, schemas, schemaPath)
-}
-
-// processRef generalizes the logic for processing allOf, oneOf, and anyOf refs.
-// Since walk isn't smart enough to know when a ref is being passed down, we manually
-// append the results of the walk to the parent (root) and schemas list.
-func processRef(schema *jsonschema.Schema, parent *Schema, schemas *[]Schema, schemaPath string) error {
-	var refGraphQL Schema
-	if err := walk(schema.Properties, &refGraphQL, schemas, typeRoot, schema.Definitions, schemaPath); err != nil {
-		return fmt.Errorf("error processing allOf schema %q: %w", schema.Title, err)
-	}
-
-	// Some refs won't contain titles, in that case borrow from the parent.
-	if schema.Title == "" {
-		schema.Title = title(parent.TypeName)
-	}
-
-	parent.Fields = append(parent.Fields, Field{
-		Name:        lowerTitle(schema.Title),
-		Description: schema.Description,
-		Type:        schema.Title,
-	})
-	refGraphQL.TypeName = schema.Title
-	*schemas = append(*schemas, refGraphQL)
-
-	return nil
-}
-
 func extractLeaf(node any, key string) (*orderedmap.OrderedMap, error) {
 	orderedMap, err := getOrderedMapKey[orderedmap.OrderedMap](node, key)
 	if err != nil {
@@ -390,14 +347,4 @@ func lowerTitle(str string) string {
 	r := []rune(str)
 	r[0] = unicode.ToLower(r[0])
 	return string(r)
-}
-
-// parseRefPath splits a "$ref" of the style "#/$defs/fieldName" for finding the definition name.
-func parseRefPath(path string) string {
-	split := strings.Split(path, "/")
-	if len(split) == 0 {
-		return ""
-	}
-
-	return split[len(split)-1]
 }

@@ -108,14 +108,14 @@ func TestTransform(t *testing.T) {
 							Description: "Sample field description.",
 						},
 						{
-							Name:        "sampleObjectField",
-							Type:        "SampleObjectField",
+							Name:        "sampleObject",
+							Type:        "SampleObject",
 							Description: "Sample object field description.",
 						},
 					},
 				},
 				{
-					TypeName: "SampleObjectField",
+					TypeName: "SampleObject",
 					Fields: []Field{
 						{
 							Name:        "nestedField",
