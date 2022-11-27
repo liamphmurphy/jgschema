@@ -1,3 +1,5 @@
+**WARNING**: This tool is public but is not yet ready for any kind of serious use, please wait for a proper v1.0 release. 
+
 jgschema (working name!) is a small CLI tool written in Go to convert JSON schemas to GraphQL schemas.
 
 This tool helps eliminate some of the tedium of maintaining a JSON schema and GraphQL schema for data models that begin with the creation of a JSON schema. 
