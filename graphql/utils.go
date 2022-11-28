@@ -59,7 +59,7 @@ func getRef(path, defKeyword, schemaPath string, definitions jsonschema.Definiti
 // Since walk isn't smart enough to know when a ref is being passed down, we manually
 // append the results of the walk to the parent (root) and schemas list.
 func walkRef(schema *jsonschema.Schema, parent *Schema, schemas *[]Schema, schemaPath string) error {
-	refGraphQL := Schema{TypeName: schema.Title}
+	refGraphQL := Schema{TypeName: schema.Title, Description: schema.Description}
 	if err := walk(schema.Properties, schema.Required, &refGraphQL, schemas, typeRoot, schema.Definitions, schemaPath); err != nil {
 		return fmt.Errorf("error processing ref schema %q: %w", schema.Title, err)
 	}

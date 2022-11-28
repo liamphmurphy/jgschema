@@ -48,6 +48,10 @@ func generate(schemas []Schema, w io.Writer) error {
 			sb.WriteString("\n\n")
 		}
 
+		if schema.Description != "" {
+			sb.WriteString(fmt.Sprintf("\"%s\"\n", schema.Description))
+		}
+
 		sb.WriteString(fmt.Sprintf("type %s {\n", title(schema.TypeName)))
 		for j, field := range schema.Fields {
 			if j != 0 && j != len(schema.Fields) && field.Description != "" {

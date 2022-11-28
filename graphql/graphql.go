@@ -16,8 +16,9 @@ const (
 
 // Schema defines the elements of a GraphQL schema in the context of this program.
 type Schema struct {
-	TypeName string
-	Fields   []Field
+	TypeName    string
+	Description string
+	Fields      []Field
 }
 
 // Field defines the data needed to construct a GraphQL schema field.
@@ -48,8 +49,9 @@ func transform(jsonSchema *jsonschema.Schema, schemaPath string, customRootTitle
 	}
 
 	parent := Schema{
-		TypeName: parentSchemaTitle,
-		Fields:   []Field{},
+		TypeName:    parentSchemaTitle,
+		Description: jsonSchema.Description,
+		Fields:      []Field{},
 	}
 
 	schemas := []Schema{{}}
@@ -222,8 +224,9 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 			if fieldType == typeObject {
 				// TODO: re-use code from here and the default case.
 				newSchema := Schema{
-					TypeName: parent.TypeName,
-					Fields:   []Field{},
+					TypeName:    parent.TypeName,
+					Description: parent.Description,
+					Fields:      []Field{},
 				}
 
 				if err := walk(root, []string{}, &newSchema, schemas, typeObject, definitions, schemaPath); err != nil {
@@ -254,8 +257,9 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 				}
 
 				newSchema := Schema{
-					TypeName: parent.TypeName,
-					Fields:   []Field{},
+					TypeName:    parent.TypeName,
+					Description: parent.Description,
+					Fields:      []Field{},
 				}
 
 				if err := walkRef(ref, &newSchema, schemas, schemaPath); err != nil {
@@ -273,8 +277,9 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 				return fmt.Errorf("unknown key in array items: %q", key)
 			}
 			newSchema := Schema{
-				TypeName: parent.TypeName,
-				Fields:   []Field{},
+				TypeName:    parent.TypeName,
+				Description: parent.Description,
+				Fields:      []Field{},
 			}
 			if err = walkObject(properties, &newSchema, schemas, []string{}, definitions, schemaPath); err != nil {
 				return fmt.Errorf("error walking down object array item %q: %w", key, err)
