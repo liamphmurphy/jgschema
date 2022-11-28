@@ -30,6 +30,8 @@ func getRef(path, defKeyword, schemaPath string, definitions jsonschema.Definiti
 
 	var schema *jsonschema.Schema
 	switch {
+	case isExternal && isDefinition:
+
 	case isExternal:
 		if !filepath.IsAbs(path) {
 			split := strings.Split(path, "/")
@@ -46,7 +48,7 @@ func getRef(path, defKeyword, schemaPath string, definitions jsonschema.Definiti
 		}
 
 		if schema.Title == "" {
-			schema.Title = title(definitionName)
+			schema.Title = definitionName
 		}
 	}
 
@@ -64,13 +66,13 @@ func walkRef(schema *jsonschema.Schema, parent *Schema, schemas *[]Schema, schem
 
 	// Some refs won't contain titles, in that case borrow from the parent.
 	if schema.Title == "" {
-		schema.Title = title(parent.TypeName)
+		schema.Title = parent.TypeName
 	}
 
 	parent.Fields = append(parent.Fields, Field{
 		Name:        lowerTitle(schema.Title),
 		Description: schema.Description,
-		Type:        schema.Title,
+		Type:        typeObject,
 	})
 	*schemas = append(*schemas, refGraphQL)
 

@@ -44,7 +44,7 @@ func transform(jsonSchema *jsonschema.Schema, schemaPath string, customRootTitle
 
 	parentSchemaTitle := customRootTitle
 	if parentSchemaTitle == "" {
-		parentSchemaTitle = title(fileNameNoExtension(schemaPath))
+		parentSchemaTitle = fileNameNoExtension(schemaPath)
 	}
 
 	parent := Schema{
@@ -101,7 +101,6 @@ func transform(jsonSchema *jsonschema.Schema, schemaPath string, customRootTitle
 	}
 
 	schemas[0] = parent
-
 	return schemas, nil
 }
 
@@ -173,24 +172,18 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, 
 			return fmt.Errorf("error on field %q getting object field type: %w", key, err)
 		}
 
-		// Depending on the type, the casing can change (mainly with objects), so some extra formatting is needed.
-		formattedFieldType, err := constructFieldName(key, *fieldType)
-		if err != nil {
-			return fmt.Errorf("error constructing field type: %w", err)
-		}
-
 		// Declare the field early and let any further traversal operations update the field if needed.
 		field := Field{
 			Name:        key,
 			Description: *description,
-			Type:        formattedFieldType,
+			Type:        *fieldType,
 			Required:    contains(key, requiredFields),
 			Array:       isArray(*fieldType),
 		}
 
 		switch *fieldType {
 		case typeObject:
-			schema.TypeName = title(key)
+			schema.TypeName = key
 
 			if err := walk(property, *required, &schema, schemas, typeObject, definitions, schemaPath); err != nil {
 				return fmt.Errorf("error walking down nested object %q: %w", key, err)
@@ -202,7 +195,6 @@ func walkObject(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, 
 				return fmt.Errorf("error walking down array %q: %w", key, err)
 			}
 
-			// TODO: don't assume index 0 for the field
 			if schema.Fields != nil {
 				field.Type = schema.Fields[0].Type
 			}
@@ -230,7 +222,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 			if fieldType == typeObject {
 				// TODO: re-use code from here and the default case.
 				newSchema := Schema{
-					TypeName: title(parent.TypeName),
+					TypeName: parent.TypeName,
 					Fields:   []Field{},
 				}
 
@@ -240,19 +232,15 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 
 				// Merge newSchema back into the parent.
 				parent.Fields = append(parent.Fields, newSchema.Fields...)
-				parent.Fields[0].Type = title(parent.TypeName)
+				parent.Fields[0].Type = typeObject
 				*schemas = append(*schemas, newSchema)
 
 				return nil
 			}
 
 			// Depending on the type, the casing can change (mainly with objects), so some extra formatting is needed.
-			formattedFieldType, err := constructFieldName(key, fieldType)
-			if err != nil {
-				return fmt.Errorf("error constructing field type: %w", err)
-			}
 			field := Field{
-				Type: formattedFieldType,
+				Type: fieldType,
 			}
 
 			parent.Fields = append(parent.Fields, field)
@@ -266,7 +254,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 				}
 
 				newSchema := Schema{
-					TypeName: title(parent.TypeName),
+					TypeName: parent.TypeName,
 					Fields:   []Field{},
 				}
 
@@ -285,7 +273,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 				return fmt.Errorf("unknown key in array items: %q", key)
 			}
 			newSchema := Schema{
-				TypeName: title(parent.TypeName),
+				TypeName: parent.TypeName,
 				Fields:   []Field{},
 			}
 			if err = walkObject(properties, &newSchema, schemas, []string{}, definitions, schemaPath); err != nil {
@@ -294,7 +282,7 @@ func walkArray(root *orderedmap.OrderedMap, parent *Schema, schemas *[]Schema, d
 
 			// Merge newSchema back into the parent.
 			parent.Fields = append(parent.Fields, newSchema.Fields...)
-			parent.Fields[0].Type = title(parent.TypeName)
+			parent.Fields[0].Type = typeObject
 			*schemas = append(*schemas, newSchema)
 		}
 	}
@@ -348,24 +336,4 @@ func contains(s string, ss []string) bool {
 	}
 
 	return false
-}
-
-// constructFieldName turns a JSON Schema's type (lowercase) into an uppercase name. If an object, use the name of the field.
-func constructFieldName(name string, typeName string) (string, error) {
-	switch typeName {
-	case "integer":
-		return "Int", nil
-	case "boolean":
-		return "Boolean", nil
-	case "number":
-		return "Float", nil
-	case "string":
-		return "String", nil
-	case "object":
-		return title(name), nil
-	case "array":
-		return "[]", nil
-	default:
-		return "", fmt.Errorf("unrecognized type name: %q", typeName)
-	}
 }

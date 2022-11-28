@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "OneLevelSchema",
+    "title": "oneLevelSchema",
     "description": "A schema with multiple fields but no nested objects.",
     "type": "object",
     "properties": {

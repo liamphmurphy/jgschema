@@ -24,11 +24,11 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/simple-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "SimpleSchema",
+					TypeName: "simpleSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample field description.",
 						},
 					},
@@ -41,11 +41,11 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/simple-schema-required.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "SimpleSchema",
+					TypeName: "simpleSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleField",
-							Type:        "String",
+							Type:        "string",
 							Required:    true,
 							Description: "Sample field description.",
 						},
@@ -60,21 +60,21 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/one-level-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "OneLevelSchema",
+					TypeName: "oneLevelSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleStringField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample string field description.",
 						},
 						{
 							Name:        "sampleIntegerField",
-							Type:        "Int",
+							Type:        "integer",
 							Description: "Sample integer field description.",
 						},
 						{
 							Name:        "sampleNumberField",
-							Type:        "Float",
+							Type:        "number",
 							Description: "Sample number field description.",
 						},
 					},
@@ -87,26 +87,26 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/nested-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "NestedSchema",
+					TypeName: "nestedSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample field description.",
 						},
 						{
 							Name:        "sampleObjectField",
-							Type:        "SampleObjectField",
+							Type:        "object",
 							Description: "Sample object field description.",
 						},
 					},
 				},
 				{
-					TypeName: "SampleObjectField",
+					TypeName: "sampleObjectField",
 					Fields: []Field{
 						{
 							Name:        "nestedField",
-							Type:        "Int",
+							Type:        "integer",
 							Description: "Nested object field description.",
 						},
 					},
@@ -119,26 +119,26 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/def-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "NestedSchema",
+					TypeName: "nestedSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample field description.",
 						},
 						{
 							Name:        "sampleObject",
-							Type:        "SampleObject",
+							Type:        "object",
 							Description: "Sample object field description.",
 						},
 					},
 				},
 				{
-					TypeName: "SampleObject",
+					TypeName: "sampleObject",
 					Fields: []Field{
 						{
 							Name:        "nestedField",
-							Type:        "Int",
+							Type:        "integer",
 							Description: "Nested object field description.",
 						},
 					},
@@ -151,26 +151,26 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/def-file-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "NestedSchema",
+					TypeName: "nestedSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample field description.",
 						},
 						{
 							Name:        "simpleSchema",
-							Type:        "SimpleSchema",
+							Type:        "object",
 							Description: "A sample schema for the purpose of testing.",
 						},
 					},
 				},
 				{
-					TypeName: "SimpleSchema",
+					TypeName: "simpleSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample field description.",
 						},
 					},
@@ -183,11 +183,11 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/array-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "ArraySchema",
+					TypeName: "arraySchema",
 					Fields: []Field{
 						{
 							Name:        "arrayStringField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample array field description.",
 							Array:       true,
 						},
@@ -201,38 +201,38 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/object-array-schema.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "ObjectArraySchema",
+					TypeName: "objectArraySchema",
 					Fields: []Field{
 						{
 							Name:        "arrayObjectField",
-							Type:        "ArrayObjectField",
+							Type:        "object",
 							Description: "Sample array field description.",
 							Array:       true,
 						},
 						{
 							Name:        "secondArrayField",
-							Type:        "SecondArrayField",
+							Type:        "object",
 							Description: "Sample array field description.",
 							Array:       true,
 						},
 					},
 				},
 				{
-					TypeName: "ArrayObjectField",
+					TypeName: "arrayObjectField",
 					Fields: []Field{
 						{
 							Name:        "objectStringField",
-							Type:        "String",
+							Type:        "string",
 							Description: "A string field in an object.",
 						},
 					},
 				},
 				{
-					TypeName: "SecondArrayField",
+					TypeName: "secondArrayField",
 					Fields: []Field{
 						{
 							Name:        "objectStringField",
-							Type:        "String",
+							Type:        "string",
 							Description: "A string field in an object.",
 						},
 					},
@@ -245,41 +245,41 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/schema-with-allOf.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "AllOfSchema",
+					TypeName: "allOfSchema",
 					Fields: []Field{
 						{
 							Name:        "exampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Example field description.",
 						},
 						{
 							Name:        "sampleObjectField",
-							Type:        "SampleObjectField",
+							Type:        "object",
 							Description: "Sample object field description.",
 						},
 						{
 							Name:        "simpleSchema",
-							Type:        "SimpleSchema",
+							Type:        "object",
 							Description: "A sample schema for the purpose of testing.",
 						},
 					},
 				},
 				{
-					TypeName: "SampleObjectField",
+					TypeName: "sampleObjectField",
 					Fields: []Field{
 						{
 							Name:        "nestedField",
-							Type:        "Int",
+							Type:        "integer",
 							Description: "Nested object field description.",
 						},
 					},
 				},
 				{
-					TypeName: "SimpleSchema",
+					TypeName: "simpleSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample field description.",
 						},
 					},
@@ -292,41 +292,41 @@ func TestTransform(t *testing.T) {
 			inputSchema: fmt.Sprintf("%s/schema-with-oneOf.json", schemaTestDir),
 			wantGraphQL: []Schema{
 				{
-					TypeName: "OneOfSchema",
+					TypeName: "oneOfSchema",
 					Fields: []Field{
 						{
 							Name:        "exampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Example field description.",
 						},
 						{
 							Name:        "sampleObjectField",
-							Type:        "SampleObjectField",
+							Type:        "object",
 							Description: "Sample object field description.",
 						},
 						{
 							Name:        "simpleSchema",
-							Type:        "SimpleSchema",
+							Type:        "object",
 							Description: "A sample schema for the purpose of testing.",
 						},
 					},
 				},
 				{
-					TypeName: "SampleObjectField",
+					TypeName: "sampleObjectField",
 					Fields: []Field{
 						{
 							Name:        "nestedField",
-							Type:        "Int",
+							Type:        "integer",
 							Description: "Nested object field description.",
 						},
 					},
 				},
 				{
-					TypeName: "SimpleSchema",
+					TypeName: "simpleSchema",
 					Fields: []Field{
 						{
 							Name:        "sampleField",
-							Type:        "String",
+							Type:        "string",
 							Description: "Sample field description.",
 						},
 					},

@@ -28,6 +28,7 @@ Related to above, what we do have working:
 ```
 
 
-- Fix definition ref parse to use actual field name instead of lower case type name as field name, see definitions ref test 
-
-- add back in required fields
+1. x Clean up graphql.go deciding how text appears in the graphql schema
+2. x In the GQL generated schema, if there's no description / comment, don't add a newline between the next field.
+3. ?? Comment on top of a GQL schema type declaration, if the JSON Schema has a top-level description? 
+4. Add support for referirng to definition in an external schema, see above
